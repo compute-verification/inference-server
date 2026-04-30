@@ -141,3 +141,135 @@ class DcgmSmActiveSampler:
             "sm_active_min": float(min(active)),
             "sm_active_all_mean": float(sum(all_vals) / len(all_vals)),
         }
+
+
+# DCGM profiling fields. See nvidia-dcgm/dcgm_fields.h.
+DCGM_FIELDS = {
+    "sm_active":     1002,  # ratio of cycles any SM was busy (averaged across all SMs)
+    "sm_occupancy":  1003,  # ratio of resident warps : max possible warps per SM
+    "tensor_active": 1004,  # ratio of cycles tensor pipe was active
+    "dram_active":   1005,
+    "fp64_active":   1006,
+    "fp32_active":   1007,  # ratio of cycles FP32 pipe was active
+    "fp16_active":   1008,
+}
+
+
+class DcgmMultiFieldSampler:
+    """Stream multiple DCGM profiling fields concurrently via `dcgmi dmon`.
+
+    Used to answer Buck's per-SM-internal-saturation question (2026-04-30):
+    SM_ACTIVE alone proves an SM is *scheduled*, not that the FP32/tensor
+    pipes inside it are *saturated*. This sampler joins SM_ACTIVE with
+    SM_OCCUPANCY (warp residency) and PIPE_FP32_ACTIVE (FP32 pipe utilisation)
+    so a single sweep can verify all three layers.
+
+    By default samples ``sm_active``, ``sm_occupancy``, ``fp32_active``,
+    ``tensor_active``. Override with ``fields=[...]``.
+    """
+
+    def __init__(self, gpu_index: int = 0, interval_ms: int = 100,
+                 fields: list[str] | None = None):
+        if interval_ms < 100:
+            interval_ms = 100
+        self.gpu_index = gpu_index
+        self.interval_ms = interval_ms
+        self.fields = fields or ["sm_active", "sm_occupancy",
+                                  "fp32_active", "tensor_active"]
+        for f in self.fields:
+            if f not in DCGM_FIELDS:
+                raise ValueError(f"unknown DCGM field {f!r}; choices: {sorted(DCGM_FIELDS)}")
+        # Per-field samples: list of (t_ms, value) tuples.
+        self.samples: dict[str, list[tuple[float, float]]] = {f: [] for f in self.fields}
+        self._proc: subprocess.Popen | None = None
+        self._reader: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._t0_perf = 0.0
+
+    def start(self) -> None:
+        for f in self.fields:
+            self.samples[f].clear()
+        self._stop.clear()
+        self._t0_perf = time.perf_counter()
+        ids = ",".join(str(DCGM_FIELDS[f]) for f in self.fields)
+        cmd = ["dcgmi", "dmon", "-e", ids, "-d", str(self.interval_ms),
+               "-i", str(self.gpu_index), "-c", "0"]
+        self._proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, bufsize=1, preexec_fn=os.setsid,
+        )
+        self._reader = threading.Thread(target=self._read_loop, daemon=True)
+        self._reader.start()
+
+    def _read_loop(self) -> None:
+        assert self._proc is not None
+        n_fields = len(self.fields)
+        for line in self._proc.stdout:
+            if self._stop.is_set():
+                break
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("Id"):
+                continue
+            parts = line.split()
+            # Expected: ['GPU', '<idx>', val1, val2, ..., valN]
+            if len(parts) >= 2 + n_fields and parts[0] == "GPU":
+                t = (time.perf_counter() - self._t0_perf) * 1000.0
+                for i, f in enumerate(self.fields):
+                    try:
+                        val = float(parts[2 + i])
+                    except ValueError:
+                        continue
+                    self.samples[f].append((t, val))
+
+    def stop(self) -> None:
+        if self._proc is None:
+            return
+        self._stop.set()
+        try:
+            os.killpg(os.getpgid(self._proc.pid), signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            self._proc.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(os.getpgid(self._proc.pid), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if self._reader:
+            self._reader.join(timeout=1.0)
+        self._proc = None
+        self._reader = None
+
+    def summary(self, active_threshold_field: str = "sm_active",
+                active_threshold: float = 0.05) -> dict:
+        """Per-field aggregation, filtered to samples where the gating field
+        (default ``sm_active``) crossed ``active_threshold``.
+
+        Restricting to active samples is important: every field is averaged
+        across all SMs, so during the launch ramp / teardown the values
+        drop and would skew the mean if folded in.
+        """
+        gate = self.samples.get(active_threshold_field, [])
+        active_idx = {i for i, (_, v) in enumerate(gate) if v >= active_threshold}
+        out: dict = {"fields": self.fields, "interval_ms": self.interval_ms}
+        for f in self.fields:
+            vals = self.samples[f]
+            if not vals:
+                out[f] = {"count": 0}
+                continue
+            active = [v for i, (_, v) in enumerate(vals) if i in active_idx]
+            all_vals = [v for _, v in vals]
+            if not active:
+                active = all_vals
+            sa = sorted(active)
+            out[f] = {
+                "count": len(vals),
+                "active_count": len(active),
+                "mean_active": float(sum(active) / len(active)),
+                "median_active": float(sa[len(sa) // 2]),
+                "max_active": float(max(active)),
+                "min_active": float(min(active)),
+                "mean_all": float(sum(all_vals) / len(all_vals)),
+            }
+        return out

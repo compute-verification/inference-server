@@ -176,3 +176,78 @@ Append-only. Newest entries at the bottom.
   = 108 SMs, phase 2 = 54 SMs), time-averaged expectation is 81 SMs;
   observed 75 SMs. ✓
 - Cost: ~30 min on A100 SXM4 ≈ \$1.00. Instance terminated.
+
+## 2026-04-30 — PR-#13 follow-ups (per Buck/Luke meeting)
+
+After the 2026-04-30 design meeting, four follow-ups were queued for PR
+#13 before the IEEE S&P paper writeup begins. All four landed in this
+session.
+
+**Item 2 — workload schedule documented.** Added a "Workload schedule"
+section to the v3/v4 reports stating: each launch is `grid = N` blocks,
+1 block per SM (forced by 96 KB SMEM), no matmul work spans multiple
+SMs. This is what the security argument will assume.
+
+**Item 3 — `matmuls_per_response` (M-stride) parameter.** Added optional
+`Challenge.matmuls_per_response` and `Response.chain_hashes` (with new
+`ChainHashChunk` dataclass) to `pkg/freivalds/spec.py`. New module
+`pkg/freivalds/streaming.py` implements `execute_streaming_challenge`
+and `verify_streaming_response` — for each chunk of M consecutive
+matmuls, the prover hash-chains `digest_c` values into one chain hash,
+returns it, repeats `K/M` times. Genesis tag is domain-separated from
+`matrix_digest` so chain hashes can't be forged from another protocol
+layer. 18 streaming-protocol unit tests cover honest round-trip,
+tampering on a single chain hash, missing chunks, uneven tail chunks,
+chunk-of-1 (refresh-rate-1 pathological case), and wire-format
+round-trip with `M` set or absent. All 56 freivalds tests pass.
+
+Wrote up the streaming protocol as a spec at
+`experiments/freivalds-attestation/specs/streaming_strided.md` (Luke
+asked for this to be formalized).
+
+**Item 4 — FLOPs-native interface.** Added
+`OccupancyController.occupy_flops(flops, duration_s)`. Internally:
+calibrate per-SM FP32 throughput, pick the smallest `N_sm` that meets
+the deadline, size per-block iterations to consume the budget.
+Static helper `OccupancyController.matmul_flops(n, k) = 2·k·n³` for the
+verifier-side conversion. New `--flops` CLI flag.
+
+**Item 1 — per-SM internal saturation verified on A100.** Buck's
+question: when we say "1 SM occupied," are *all* the FP32/tensor cores
+inside that SM being used, or only a subset? Extended `dcgm_sampler.py`
+with `DcgmMultiFieldSampler` that streams 4 DCGM profiling fields
+concurrently — 1002 SMACT, 1003 SM_OCCUPANCY (warp residency), 1007
+PIPE_FP32_ACTIVE, 1004 PIPE_TENSOR_ACTIVE.
+
+Re-ran the sweep on A100 SXM4 (Lambda us-east-1, ~30 min, ~\$1).
+Reading FP32_active / SM_active gives the **per-busy-SM** FP32 pipe
+saturation:
+
+| target % | DCGM SMACT | FP32/busy_SM | TENSOR/busy_SM | SM_OCC/busy_SM |
+|---|---|---|---|---|
+| 1   | 0.008 | 1.004 | 0.000 | 0.554 |
+| 5   | 0.041 | 0.997 | 0.000 | 0.500 |
+| 10  | 0.099 | 1.061 | 0.000 | 0.500 |
+| 25  | 0.250 | 0.926 | 0.000 | 0.500 |
+| 50  | 0.500 | 0.985 | 0.000 | 0.500 |
+| 75  | 0.750 | 0.933 | 0.000 | 0.500 |
+| 100 | 1.000 | 0.991 | 0.000 | 0.500 |
+
+**FP32 pipe is saturated on every busy SM** — ratio is ≈ 1.0 at every
+level (0.93 to 1.06; values >1.0 are sampling artefacts). Tensor pipe
+is unused (kernel is FP32-only by design — no `wmma`/`mma`). Warp
+occupancy reads 0.5 because register pressure caps issuable warps to
+16/32 even though all 32 are resident; FP32-pipe saturation is
+unaffected.
+
+Side benefit of running with `--duration-s 1.5 --target-ms 1500`:
+DCGM SMACT × n_sms now matches the target to ±0.1 SM at every level
+(was −7.6 at full GPU in v3, the launch-ramp sampling artefact).
+
+FLOPs sanity check separately: per-SM FP32 throughput **180.1 GFLOPs/s**
+≈ 100% of A100's 19.5 TFLOPS / 108 SMs theoretical peak. Confirms the
+busy kernel is a clean FP32 stress.
+
+Outputs landed: `data/sm_occupancy/sweep_a100_v4.json`,
+`data/sm_occupancy/flops_a100_v4.json`,
+`reports/sm_occupancy_a100_v4.md`. Instance terminated.
