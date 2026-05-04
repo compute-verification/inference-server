@@ -35,6 +35,7 @@ from pkg.common.contracts import ValidationError, validate_with_schema  # noqa: 
 from pkg.proverdet.capture import ProverCaptureLog  # noqa: E402
 from pkg.proverdet.graph_builder import build_empty_graph  # noqa: E402
 from pkg.proverdet.replay import stub_evidence  # noqa: E402
+from pkg.proverdet.traffic_publisher import TrafficPublisher  # noqa: E402
 from pkg.proverdet.wire import ReplayRequest  # noqa: E402
 
 
@@ -60,6 +61,13 @@ class ProverState:
         self.debug_mode = debug_mode
         self.lock = threading.Lock()
         self.capture_log = ProverCaptureLog(out_dir / "capture.jsonl")
+        self.traffic_publisher: TrafficPublisher | None = (
+            TrafficPublisher(verifier_url=verifier_url) if verifier_url else None
+        )
+
+    def stop(self) -> None:
+        if self.traffic_publisher is not None:
+            self.traffic_publisher.stop()
 
 
 class ProverHandler(BaseHTTPRequestHandler):
@@ -120,7 +128,39 @@ class ProverHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path == "/replay":
             return self._handle_post_replay()
+        if self.path == "/debug/emit-frames":
+            return self._handle_post_debug_emit_frames()
         return self._send_json(404, {"error": "not found"})
+
+    def _handle_post_debug_emit_frames(self) -> None:
+        """Debug-only: synthesize N deterministic frames and publish them.
+
+        Body: {"count": int, "size_bytes": int, "seed": int (optional)}.
+        Frames are sha256(seed || index)[:size_bytes] tiled, so the test can
+        recompute the same bytes the verifier should receive.
+        """
+        if self.state is None:
+            return self._send_json(500, {"error": "prover state not initialized"})
+        if not self.state.debug_mode:
+            return self._send_json(404, {"error": "not found"})
+        if self.state.traffic_publisher is None:
+            return self._send_json(
+                500, {"error": "no verifier_url configured for traffic publisher"}
+            )
+        raw = self._read_body()
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError as exc:
+            return self._send_json(400, {"error": f"invalid JSON: {exc}"})
+        count = int(payload.get("count", 1))
+        size_bytes = int(payload.get("size_bytes", 64))
+        seed = int(payload.get("seed", 0))
+
+        # Lazily start the publisher.
+        self.state.traffic_publisher.start()
+        for i in range(count):
+            self.state.traffic_publisher.publish(_synth_frame(seed, i, size_bytes))
+        return self._send_json(200, {"published": count, "size_bytes": size_bytes})
 
     def _read_body(self) -> bytes:
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -163,6 +203,24 @@ class ProverHandler(BaseHTTPRequestHandler):
         except ValidationError as exc:
             return self._send_json(500, {"error": f"evidence schema mismatch: {exc}"})
         return self._send_json(200, body)
+
+
+def _synth_frame(seed: int, index: int, size_bytes: int) -> bytes:
+    """Deterministic synthetic frame for the /debug/emit-frames endpoint.
+
+    Tile sha256(seed||index) up to size_bytes. Independent of host —
+    same (seed, index, size) always yields the same bytes, so tests can
+    recompute the expected concatenated stream.
+    """
+    import hashlib
+
+    seed_bytes = seed.to_bytes(8, "big", signed=False)
+    idx_bytes = index.to_bytes(8, "big", signed=False)
+    digest = hashlib.sha256(seed_bytes + idx_bytes).digest()  # 32 bytes
+    out = bytearray()
+    while len(out) < size_bytes:
+        out.extend(digest)
+    return bytes(out[:size_bytes])
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -227,13 +285,17 @@ def main() -> int:
 
     def shutdown(signum: int, _frame: Any) -> None:
         print(f"prover: caught signal {signum}, shutting down", flush=True)
+        state.stop()
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    server.serve_forever()
-    server.server_close()
+    try:
+        server.serve_forever()
+    finally:
+        state.stop()
+        server.server_close()
     return 0
 
 
