@@ -29,8 +29,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from pydantic import ValidationError as PydanticValidationError  # noqa: E402
+
 from pkg.common.contracts import ValidationError, validate_with_schema  # noqa: E402
 from pkg.proverdet.graph_builder import build_empty_graph  # noqa: E402
+from pkg.proverdet.replay import stub_evidence  # noqa: E402
+from pkg.proverdet.wire import ReplayRequest  # noqa: E402
 
 
 class ProverState:
@@ -100,6 +104,49 @@ class ProverHandler(BaseHTTPRequestHandler):
             # Schema mismatch is a programmer error; surface 500 with the
             # message so it shows up in tests.
             return self._send_json(500, {"error": f"graph schema mismatch: {exc}"})
+        return self._send_json(200, body)
+
+    # -- POST --
+
+    def do_POST(self) -> None:
+        if self.path == "/replay":
+            return self._handle_post_replay()
+        return self._send_json(404, {"error": "not found"})
+
+    def _read_body(self) -> bytes:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0:
+            return b""
+        return self.rfile.read(length)
+
+    def _handle_post_replay(self) -> None:
+        raw = self._read_body()
+        if not raw:
+            return self._send_json(400, {"error": "empty request body"})
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return self._send_json(400, {"error": f"invalid JSON: {exc}"})
+
+        # Schema-validate first (fast 400 with a path), then Pydantic-validate
+        # (which gives us a typed object).
+        try:
+            validate_with_schema("replay_request.v1.schema.json", payload)
+        except ValidationError as exc:
+            return self._send_json(400, {"error": str(exc)})
+
+        try:
+            req = ReplayRequest.model_validate(payload)
+        except PydanticValidationError as exc:
+            return self._send_json(400, {"error": str(exc)})
+
+        evidence = stub_evidence(req)
+        body = evidence.model_dump(exclude_none=True)
+        # Defensive: belt-and-braces validate evidence too.
+        try:
+            validate_with_schema("replay_evidence.v1.schema.json", body)
+        except ValidationError as exc:
+            return self._send_json(500, {"error": f"evidence schema mismatch: {exc}"})
         return self._send_json(200, body)
 
 

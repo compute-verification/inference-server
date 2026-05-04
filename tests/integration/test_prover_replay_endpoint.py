@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+import subprocess
+import sys
+import tempfile
+import unittest
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+from pkg.common.contracts import validate_with_schema
+from tests.proverdet._helpers import (
+    REPO_ROOT,
+    http_post_json,
+    read_bound_port,
+    sandbox_env,
+)
+
+
+class _ProverFixture(unittest.TestCase):
+    proc: subprocess.Popen[bytes] | None = None
+    tmp: tempfile.TemporaryDirectory[str] | None = None
+    port: int
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        port_file = Path(self.tmp.name) / "bound.port"
+        self.proc = subprocess.Popen(
+            [
+                sys.executable,
+                "cmd/prover/main.py",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "0",
+                "--port-file",
+                str(port_file),
+                "--run-id",
+                "test-run",
+                "--out-dir",
+                self.tmp.name,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(REPO_ROOT),
+            env=sandbox_env(),
+        )
+        try:
+            self.port = read_bound_port(port_file, timeout_s=10.0)
+        except Exception:
+            if self.proc is not None:
+                self.proc.terminate()
+                self.proc.wait(timeout=5)
+            self.fail("prover never bound")
+
+    def tearDown(self) -> None:
+        if self.proc is not None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait(timeout=5)
+        if self.tmp is not None:
+            self.tmp.cleanup()
+
+
+class TestReplayEndpoint(_ProverFixture):
+    def _replay_request(self, replay_id: str = "r-1") -> dict:
+        return {
+            "replay_id": replay_id,
+            "pod_id": "pod-a",
+            "target": {"kind": "task", "task_id": "task-0"},
+            "erasure": {
+                "challenge_seed": "deadbeef",
+                "deadline_ms": 1000,
+                "rounds": 2,
+            },
+            "proof_of_work": {
+                "matmul_dim": 64,
+                "dtype": "bf16",
+                "rounds": 1,
+                "report_every_ms": 100,
+            },
+            "auxiliary": [],
+        }
+
+    def test_post_replay_returns_valid_evidence(self) -> None:
+        status, body = http_post_json(
+            f"http://127.0.0.1:{self.port}/replay", self._replay_request()
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(body["replay_id"], "r-1")
+        validate_with_schema("replay_evidence.v1.schema.json", body)
+
+    def test_post_replay_with_missing_pod_id_returns_400(self) -> None:
+        bad = self._replay_request()
+        del bad["pod_id"]
+        status, body = http_post_json(f"http://127.0.0.1:{self.port}/replay", bad)
+        self.assertEqual(status, 400)
+        self.assertIn("error", body)
+
+    def test_post_replay_with_invalid_dtype_returns_400(self) -> None:
+        bad = self._replay_request()
+        bad["proof_of_work"]["dtype"] = "fp64"
+        status, body = http_post_json(f"http://127.0.0.1:{self.port}/replay", bad)
+        self.assertEqual(status, 400)
+        self.assertIn("error", body)
+
+    def test_get_replay_returns_404(self) -> None:
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{self.port}/replay")
+            self.fail("expected 404")
+        except urllib.error.HTTPError as e:
+            self.assertEqual(e.code, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()
