@@ -36,6 +36,7 @@ class BenignInferenceWorkload:
     use_vllm: bool = False
     seed: int = 0
     pod_id: str = "pod-a"
+    delay_per_prompt_s: float = 0.0
 
     def run(self, ctx: WorkloadContext) -> None:
         if self.use_vllm:
@@ -43,6 +44,8 @@ class BenignInferenceWorkload:
         return self._run_synthetic(ctx)
 
     def _run_synthetic(self, ctx: WorkloadContext) -> None:
+        import time
+
         for i, prompt in enumerate(self.prompts):
             if ctx.stop_event.is_set():
                 return
@@ -59,6 +62,10 @@ class BenignInferenceWorkload:
                     "claimed_flops": _FRAMES_PER_PROMPT * _FRAME_BYTES,
                 }
             )
+            if self.delay_per_prompt_s > 0:
+                # Use stop_event.wait so the workload aborts promptly on stop.
+                if ctx.stop_event.wait(self.delay_per_prompt_s):
+                    return
 
     def _run_vllm(self, ctx: WorkloadContext) -> None:  # pragma: no cover (GPU-only)
         # Lazy-import vLLM only on the GPU path; tests that don't have

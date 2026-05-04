@@ -37,6 +37,7 @@ from pkg.proverdet.graph_builder import build_empty_graph  # noqa: E402
 from pkg.proverdet.replay import stub_evidence  # noqa: E402
 from pkg.proverdet.traffic_publisher import TrafficPublisher  # noqa: E402
 from pkg.proverdet.wire import ReplayRequest  # noqa: E402
+from pkg.proverdet.workload_runner import WorkloadRunner  # noqa: E402
 
 
 class ProverState:
@@ -64,10 +65,29 @@ class ProverState:
         self.traffic_publisher: TrafficPublisher | None = (
             TrafficPublisher(verifier_url=verifier_url) if verifier_url else None
         )
+        self.recorded_tasks: list[dict[str, object]] = []
+        self._tasks_lock = threading.Lock()
+        self.workload_runner = WorkloadRunner(
+            publish_frame=self._publish_frame,
+            record_task=self._record_task,
+        )
+
+    def _publish_frame(self, frame: bytes) -> None:
+        if self.traffic_publisher is None:
+            return
+        self.traffic_publisher.start()
+        self.traffic_publisher.publish(frame)
+
+    def _record_task(self, task: dict[str, object]) -> None:
+        with self._tasks_lock:
+            self.recorded_tasks.append(task)
 
     def stop(self) -> None:
-        if self.traffic_publisher is not None:
-            self.traffic_publisher.stop()
+        try:
+            self.workload_runner.stop(timeout=2.0)
+        finally:
+            if self.traffic_publisher is not None:
+                self.traffic_publisher.stop()
 
 
 class ProverHandler(BaseHTTPRequestHandler):
@@ -128,9 +148,44 @@ class ProverHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path == "/replay":
             return self._handle_post_replay()
+        if self.path == "/workload/start":
+            return self._handle_post_workload_start()
+        if self.path == "/workload/stop":
+            return self._handle_post_workload_stop()
         if self.path == "/debug/emit-frames":
             return self._handle_post_debug_emit_frames()
         return self._send_json(404, {"error": "not found"})
+
+    def _handle_post_workload_start(self) -> None:
+        if self.state is None:
+            return self._send_json(500, {"error": "prover state not initialized"})
+        raw = self._read_body()
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError as exc:
+            return self._send_json(400, {"error": f"invalid JSON: {exc}"})
+        name = payload.get("name")
+        if not isinstance(name, str):
+            return self._send_json(400, {"error": "missing or non-string 'name'"})
+        params = payload.get("params", {})
+        if not isinstance(params, dict):
+            return self._send_json(400, {"error": "'params' must be an object"})
+        try:
+            self.state.workload_runner.start(name=name, params=params)
+        except RuntimeError as exc:
+            return self._send_json(409, {"error": str(exc)})
+        except KeyError as exc:
+            return self._send_json(404, {"error": str(exc)})
+        except (TypeError, ValueError) as exc:
+            return self._send_json(400, {"error": str(exc)})
+        return self._send_json(200, {"started": name})
+
+    def _handle_post_workload_stop(self) -> None:
+        if self.state is None:
+            return self._send_json(500, {"error": "prover state not initialized"})
+        was_running = self.state.workload_runner.is_running
+        self.state.workload_runner.stop(timeout=10.0)
+        return self._send_json(200, {"stopped": was_running})
 
     def _handle_post_debug_emit_frames(self) -> None:
         """Debug-only: synthesize N deterministic frames and publish them.
