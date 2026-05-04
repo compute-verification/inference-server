@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from pathlib import Path
 from typing import Any, Protocol
 
 from pkg.common.deterministic import sha256_prefixed, utc_now_iso
@@ -26,8 +27,8 @@ from pkg.freivalds import (
     execute_challenge,
 )
 from pkg.proverdet.attestation_store import AttestationStore
+from pkg.proverdet.erasure import HmacErasureBackend, run_erasure
 from pkg.proverdet.wire import (
-    ErasureEvidence,
     PowStreamEntry,
     ReplayEvidence,
     ReplayOutput,
@@ -42,9 +43,7 @@ class FreivaldsBackend(Protocol):
 
     def device_info(self) -> dict[str, Any]: ...
     def perf_time_ms(self) -> float: ...
-    def gen_matrix(
-        self, seed: int, dtype: str, rows: int, cols: int
-    ) -> tuple[Any, bytes]: ...
+    def gen_matrix(self, seed: int, dtype: str, rows: int, cols: int) -> tuple[Any, bytes]: ...
     def matmul(
         self,
         A: Any,
@@ -61,9 +60,7 @@ class FreivaldsBackend(Protocol):
 # int8: integer arithmetic, bitwise check.
 # bf16/fp16: float arithmetic, tolerance check (atol/rtol generous for
 # half-precision).
-_DTYPE_COMBOS: dict[
-    str, tuple[str, str, str, str, ComparisonMode, Tolerance | None]
-] = {
+_DTYPE_COMBOS: dict[str, tuple[str, str, str, str, ComparisonMode, Tolerance | None]] = {
     "int8": ("int8", "int8", "int32", "int32", ComparisonMode.BITWISE, None),
     "fp16": (
         "fp16",
@@ -100,14 +97,13 @@ def produce_evidence(
     *,
     freivalds_backend: FreivaldsBackend,
     attestation_store: AttestationStore,
+    erasure_log_dir: Path,
 ) -> ReplayEvidence:
-    """Run the proof-of-work challenge and emit ReplayEvidence."""
+    """Run the proof-of-work challenge + erasure and emit ReplayEvidence."""
     pow_spec = req.proof_of_work
     if pow_spec.dtype not in _DTYPE_COMBOS:
         raise ValueError(f"unsupported proof_of_work.dtype: {pow_spec.dtype!r}")
-    dtype_a, dtype_b, dtype_acc, dtype_c, comparison, tolerance = _DTYPE_COMBOS[
-        pow_spec.dtype
-    ]
+    dtype_a, dtype_b, dtype_acc, dtype_c, comparison, tolerance = _DTYPE_COMBOS[pow_spec.dtype]
 
     matmul_specs: list[MatmulSpec] = []
     for i in range(pow_spec.rounds):
@@ -129,9 +125,7 @@ def produce_evidence(
             )
         )
 
-    challenge = Challenge(
-        challenge_id=f"chal-{req.replay_id}", matmuls=tuple(matmul_specs)
-    )
+    challenge = Challenge(challenge_id=f"chal-{req.replay_id}", matmuls=tuple(matmul_specs))
     response = execute_challenge(challenge, freivalds_backend)
 
     pow_stream: list[PowStreamEntry] = []
@@ -142,9 +136,7 @@ def produce_evidence(
         # Each attestation is self-contained: a single-matmul Challenge
         # plus the matching single-result Response. The verifier can rerun
         # Freivalds against this without depending on any other attestation.
-        single_challenge = Challenge(
-            challenge_id=challenge.challenge_id, matmuls=(spec,)
-        )
+        single_challenge = Challenge(challenge_id=challenge.challenge_id, matmuls=(spec,))
         single_response = response.__class__(
             challenge_id=response.challenge_id,
             backend=response.backend,
@@ -174,6 +166,13 @@ def produce_evidence(
     output_bytes = bytes(concatenated_c)
     commitment = sha256_prefixed(output_bytes)
 
+    erasure_log_path = erasure_log_dir / f"erasure-{req.replay_id}.jsonl"
+    erasure_evidence = run_erasure(
+        req.erasure,
+        log_path=erasure_log_path,
+        backend=HmacErasureBackend(),
+    )
+
     return ReplayEvidence(
         replay_id=req.replay_id,
         produced_at=utc_now_iso(),
@@ -181,10 +180,6 @@ def produce_evidence(
             commitment=commitment,
             bytes_b64=base64.b64encode(output_bytes).decode("ascii"),
         ),
-        erasure_evidence=ErasureEvidence(
-            rounds=req.erasure.rounds,
-            passed=req.erasure.rounds,
-            log_path=f"erasure-{req.replay_id}.jsonl",
-        ),
+        erasure_evidence=erasure_evidence,
         pow_stream=pow_stream,
     )

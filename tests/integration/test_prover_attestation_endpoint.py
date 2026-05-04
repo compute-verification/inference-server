@@ -84,9 +84,7 @@ class TestAttestationEndpoint(unittest.TestCase):
         self.assertGreater(len(pow_stream), 0)
         att_id = pow_stream[0]["freivalds_attestation_id"]
 
-        status, att = http_get_json(
-            f"http://127.0.0.1:{self.port}/attestation/{att_id}"
-        )
+        status, att = http_get_json(f"http://127.0.0.1:{self.port}/attestation/{att_id}")
         self.assertEqual(status, 200)
         self.assertIn("challenge", att)
         self.assertIn("response", att)
@@ -94,9 +92,7 @@ class TestAttestationEndpoint(unittest.TestCase):
 
     def test_get_unknown_attestation_returns_404(self) -> None:
         try:
-            urllib.request.urlopen(
-                f"http://127.0.0.1:{self.port}/attestation/no-such-id"
-            )
+            urllib.request.urlopen(f"http://127.0.0.1:{self.port}/attestation/no-such-id")
             self.fail("expected 404")
         except urllib.error.HTTPError as e:
             self.assertEqual(e.code, 404)

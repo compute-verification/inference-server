@@ -274,6 +274,7 @@ class ProverHandler(BaseHTTPRequestHandler):
                 req,
                 freivalds_backend=self.state.freivalds_backend,
                 attestation_store=self.state.attestation_store,
+                erasure_log_dir=self.state.out_dir / "erasure",
             )
         except ValueError as exc:
             return self._send_json(400, {"error": str(exc)})
