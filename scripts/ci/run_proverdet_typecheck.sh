@@ -22,8 +22,18 @@ if [ "$HAS_TARGET" -eq 0 ]; then
     exit 0
 fi
 
+# Build the include list dynamically — pyright errors out (rather than warns)
+# when a configured include directory does not exist, so we only pass the
+# ones that exist on disk. If none exist, exit 0 (handled above).
+INCLUDES=()
+for p in pkg/proverdet cmd/prover cmd/verifier_server cmd/verifier_cli; do
+    if [ -e "$p" ]; then
+        INCLUDES+=("$p")
+    fi
+done
+
 if command -v pyright >/dev/null 2>&1; then
-    pyright --project "$PROJECT"
+    pyright --project "$PROJECT" "${INCLUDES[@]}"
 else
-    uv run pyright --project "$PROJECT"
+    uv run pyright --project "$PROJECT" "${INCLUDES[@]}"
 fi

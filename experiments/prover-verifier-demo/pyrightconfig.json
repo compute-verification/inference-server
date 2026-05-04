@@ -1,10 +1,11 @@
 {
   "include": [
-    "pkg/proverdet",
-    "cmd/prover",
-    "cmd/verifier_server",
-    "cmd/verifier_cli"
+    "../../pkg/proverdet",
+    "../../cmd/prover",
+    "../../cmd/verifier_server",
+    "../../cmd/verifier_cli"
   ],
+  "extraPaths": ["../.."],
   "pythonVersion": "3.11",
   "typeCheckingMode": "strict",
   "reportMissingImports": "error",
