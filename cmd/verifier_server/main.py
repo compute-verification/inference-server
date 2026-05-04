@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from pkg.proverdet.scheduler import HttpProverClient, VerifierScheduler  # noqa: E402
 from pkg.proverdet.transcript import TranscriptLog  # noqa: E402
 
 
@@ -40,12 +41,28 @@ class VerifierState:
         *,
         out_dir: Path,
         prover_base_url: str,
+        seed: int = 0,
+        graph_period_ms: int = 1000,
+        replay_period_ms: int = 2000,
+        autostart_scheduler: bool = True,
     ) -> None:
         self.out_dir = out_dir
         self.prover_base_url = prover_base_url
         self.transcript = TranscriptLog(out_dir / "transcript.jsonl")
         self._traffic_seq = 0
         self._traffic_lock = threading.Lock()
+
+        # Scheduler is started by main() after the prover URL is known
+        # reachable. Tests with autostart_scheduler=False can drive
+        # `run_for_ticks` from the test thread instead.
+        self.scheduler = VerifierScheduler(
+            client=HttpProverClient(prover_base_url),
+            transcript=self.transcript,
+            seed=seed,
+            graph_period_ms=graph_period_ms,
+            replay_period_ms=replay_period_ms,
+        )
+        self.autostart_scheduler = autostart_scheduler
 
     def next_traffic_seq(self) -> int:
         with self._traffic_lock:
@@ -126,11 +143,26 @@ def main() -> int:
     parser.add_argument("--port-file", type=Path, default=None)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--prover-base-url", required=True)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--graph-period-ms", type=int, default=1000)
+    parser.add_argument("--replay-period-ms", type=int, default=2000)
+    parser.add_argument(
+        "--no-scheduler",
+        action="store_true",
+        help="Skip starting the active scheduler thread (useful for traffic-only smoke tests).",
+    )
     args = parser.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    state = VerifierState(out_dir=args.out_dir, prover_base_url=args.prover_base_url)
+    state = VerifierState(
+        out_dir=args.out_dir,
+        prover_base_url=args.prover_base_url,
+        seed=args.seed,
+        graph_period_ms=args.graph_period_ms,
+        replay_period_ms=args.replay_period_ms,
+        autostart_scheduler=not args.no_scheduler,
+    )
     VerifierHandler.state = state
 
     server = ThreadedHTTPServer((args.host, args.port), VerifierHandler)
@@ -138,21 +170,29 @@ def main() -> int:
     if args.port_file:
         _write_port_file(args.port_file, bound_port)
 
+    if state.autostart_scheduler:
+        state.scheduler.start()
+
     print(
         f"verifier: serving on {bound_host}:{bound_port} "
-        f"out_dir={args.out_dir} prover_base_url={args.prover_base_url}",
+        f"out_dir={args.out_dir} prover_base_url={args.prover_base_url} "
+        f"scheduler={'on' if state.autostart_scheduler else 'off'}",
         flush=True,
     )
 
     def shutdown(signum: int, _frame: Any) -> None:
         print(f"verifier: caught signal {signum}, shutting down", flush=True)
+        state.scheduler.stop(timeout=2.0)
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    server.serve_forever()
-    server.server_close()
+    try:
+        server.serve_forever()
+    finally:
+        state.scheduler.stop(timeout=2.0)
+        server.server_close()
     return 0
 
 

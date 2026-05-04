@@ -39,7 +39,8 @@ class _VerifierFixture(unittest.TestCase):
                 "--out-dir",
                 self.tmp.name,
                 "--prover-base-url",
-                "http://127.0.0.1:1",  # unused this task
+                "http://127.0.0.1:1",  # unused this test (scheduler off)
+                "--no-scheduler",
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
