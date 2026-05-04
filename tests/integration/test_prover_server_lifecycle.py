@@ -68,6 +68,18 @@ class TestProverLifecycle(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body, {"ok": True})
 
+    def test_get_graph_returns_empty_placeholder(self) -> None:
+        from pkg.common.contracts import validate_with_schema
+
+        status, body = http_get_json(f"http://127.0.0.1:{self.port}/graph")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["graph_version"], "v1-placeholder")
+        self.assertEqual(body["run_id"], "test-run")
+        self.assertEqual(body["tasks"], [])
+        self.assertEqual(body["artifacts"], [])
+        self.assertEqual(body["transmissions"], [])
+        validate_with_schema("prover_graph.v1.schema.json", body)
+
     def test_unknown_endpoint_returns_404(self) -> None:
         try:
             http_get_json(f"http://127.0.0.1:{self.port}/no-such")

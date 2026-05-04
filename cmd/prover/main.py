@@ -29,6 +29,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from pkg.common.contracts import ValidationError, validate_with_schema  # noqa: E402
+from pkg.proverdet.graph_builder import build_empty_graph  # noqa: E402
+
 
 class ProverState:
     """Shared mutable state for the prover server.
@@ -82,7 +85,22 @@ class ProverHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/health":
             return self._send_json(200, {"ok": True})
+        if self.path == "/graph":
+            return self._handle_get_graph()
         return self._send_json(404, {"error": "not found"})
+
+    def _handle_get_graph(self) -> None:
+        if self.state is None:
+            return self._send_json(500, {"error": "prover state not initialized"})
+        graph = build_empty_graph(run_id=self.state.run_id)
+        body = graph.model_dump(exclude_none=True)
+        try:
+            validate_with_schema("prover_graph.v1.schema.json", body)
+        except ValidationError as exc:
+            # Schema mismatch is a programmer error; surface 500 with the
+            # message so it shows up in tests.
+            return self._send_json(500, {"error": f"graph schema mismatch: {exc}"})
+        return self._send_json(200, body)
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
