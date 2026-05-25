@@ -40,7 +40,8 @@ scripts/ci/             — CI scripts (schema gates, conformance checks, determ
 scripts/                — General utilities (reproduce.sh); scripts/lambda/ (lambda CLI)
 deploy/                 — Lambda/vast/warden provisioning (utils-owned; kept at root for path-depth)
 experiments/            — All experiments, organized by topic (see below)
-docs/                   — ADRs, conformance docs, diagrams, release policy; docs/plans/ = implementation plans
+docs/                   — Ideas & use cases (use-cases.md); ADRs/plans/conformance reviews live on the `experiments` branch
+conformance/            — Machine-readable spec catalog + release blockers (read by CI gates)
 flake.nix, nix/         — Hermetic build (must live at repo root for Nix)
 ```
 
@@ -53,8 +54,8 @@ Schema `schemas`. A capability need not be a Python package (build is nix +
 shell); the contract is a documented `README.md`, and for Python ones a small
 `api.py`. `workflows/` composes modules via `modules.Pipeline` into runnable
 recipes. New modules: add a `README.md` (Purpose · Interface · Artifacts ·
-Requirements · Example) and a smoke test in `tests/modules/`. See
-`docs/plans/repo-modularization.md`.
+Requirements · Example) and a smoke test in `tests/modules/`. Design and
+implementation plans live on the `experiments` branch.
 
 ## Experiment organization
 

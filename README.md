@@ -158,8 +158,8 @@ report = (Pipeline.from_manifest("modules/inference/manifests/qwen3-1.7b.manifes
 assert report["status"] == "conformant"
 ```
 
-See the [capability map](modules/README.md) and the
-[modularization plan](docs/plans/repo-modularization.md).
+See the [capability map](modules/README.md). (Design and implementation plans
+live on the `experiments` branch.)
 
 ## Repository Structure
 
@@ -184,7 +184,8 @@ modules/                Capability layer — each module owns its code, plus sha
 workflows/              Recipe book — runnable compositions of the modules
 experiments/            Experiments product code/gates/demos depend on (research-only ones live on the `experiments` branch)
 deploy/                 Lambda / vast / warden provisioning (utils-owned; kept at root for path-depth)
-docs/                   Architecture diagrams, field reports, memos, plans
+docs/                   Ideas & use cases (the full docs set lives on the `experiments` branch)
+conformance/            Spec conformance catalog + release blockers (read by CI)
 flake.nix, nix/         Hermetic build (must live at repo root for Nix)
 ```
 
