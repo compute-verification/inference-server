@@ -33,7 +33,7 @@ if str(REPO_ROOT) not in sys.path:
 from modules import Pipeline
 from modules.inference import C3_ENV
 
-DEFAULT_MANIFEST = "tests/fixtures/positive/manifest.v1.example.json"
+DEFAULT_MANIFEST = str(REPO_ROOT / "tests" / "fixtures" / "positive" / "manifest.v1.example.json")
 LORA_WORKLOAD = "experiments/prover-verifier-demo/scripts/workloads/mixed_lora.py"
 
 

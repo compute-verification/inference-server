@@ -25,7 +25,7 @@ if str(REPO_ROOT) not in sys.path:
 from modules import Pipeline
 from modules.attestation import Challenge, ComparisonMode, MatmulSpec, attest_matmuls
 
-DEFAULT_MANIFEST = "tests/fixtures/positive/manifest.v1.example.json"
+DEFAULT_MANIFEST = str(REPO_ROOT / "tests" / "fixtures" / "positive" / "manifest.v1.example.json")
 
 
 def _attestation_challenge() -> Challenge:

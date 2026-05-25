@@ -60,11 +60,11 @@ def run_vllm(
 
     Returns dict with keys: request_outputs, engine_events, frames, env_info
     """
-    # These imports are deferred so the module can be imported on machines without vLLM
-    # (e.g. for schema validation or synthetic mode).
-    import torch
-    from vllm import LLM, SamplingParams
-
+    # Parse runtime config and set the c3 determinism env BEFORE importing
+    # torch/vllm. torch/cuBLAS (CUBLAS_WORKSPACE_CONFIG) and vLLM
+    # (VLLM_BATCH_INVARIANT, VLLM_ATTENTION_BACKEND) read these at import /
+    # CUDA-init time, so setting them after the import is a silent no-op — the
+    # run would lose batch-invariance/cuBLAS determinism without erroring.
     runtime = manifest["runtime"]
     knobs = runtime["deterministic_knobs"]
     batch_inv = runtime.get("batch_invariance", {})
@@ -84,6 +84,11 @@ def run_vllm(
     if batch_inv.get("enabled", False):
         os.environ["VLLM_BATCH_INVARIANT"] = "1"
         resolved_env["VLLM_BATCH_INVARIANT"] = "1"
+
+    # Imports deferred until AFTER the determinism env is set — and so this module
+    # still imports on machines without vLLM (synthetic mode / schema validation).
+    import torch
+    from vllm import LLM, SamplingParams
 
     if knobs.get("torch_deterministic", False):
         torch.use_deterministic_algorithms(True)

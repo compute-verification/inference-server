@@ -10,6 +10,20 @@ no prose, no bespoke bash.
 | [`deterministic_lora_training.py`](deterministic_lora_training.py) | build + inference (+ LoRA workload) | `python3 workflows/deterministic_lora_training.py --dry-run` |
 | [`verified_inference.py`](verified_inference.py) | inference + attestation (Freivalds) | `python3 workflows/verified_inference.py` |
 
+## Setup
+
+The synthetic path needs only two small packages (no GPU):
+
+```bash
+uv venv
+uv pip install -r requirements.txt
+.venv/bin/python3 workflows/verified_inference.py     # -> conformant
+```
+
+Recipes can be run from any directory (the default manifest resolves relative to
+the repo, not your cwd). `--mode vllm` additionally needs `torch` + `vllm` on an
+NVIDIA box — see [`scripts/demo.sh`](../scripts/demo.sh).
+
 ## Conventions
 
 - Each recipe is importable (a function you can call) **and** runnable (a CLI with

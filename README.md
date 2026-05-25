@@ -82,15 +82,24 @@ Requirements:
 
 ### No GPU? Run the synthetic pipeline
 
+Install the small CPU-only deps, then run the artifact spine on the synthetic
+backend (no model download, no network):
+
 ```bash
+uv venv && uv pip install -r requirements.txt
+
 tmp=$(mktemp -d)
-python3 modules/inference/resolver/main.py --manifest modules/inference/manifests/qwen3-1.7b.manifest.json \
-  --lockfile-out $tmp/lock.json --resolve-hf
-python3 modules/build/builder/main.py --lockfile $tmp/lock.json --lockfile-out $tmp/built.json
-python3 modules/inference/runner/main.py --manifest modules/inference/manifests/qwen3-1.7b.manifest.json \
-  --lockfile $tmp/built.json --out-dir $tmp/run
-# Produces a run bundle with tokens, logits, and deterministic network frames
+.venv/bin/python3 modules/inference/resolver/main.py --manifest modules/inference/manifests/qwen3-1.7b.manifest.json \
+  --lockfile-out $tmp/lock.json
+.venv/bin/python3 modules/build/builder/main.py --lockfile $tmp/lock.json --lockfile-out $tmp/built.json
+.venv/bin/python3 modules/inference/runner/main.py --manifest modules/inference/manifests/qwen3-1.7b.manifest.json \
+  --lockfile $tmp/built.json --out-dir $tmp/run --mode synthetic
+# Produces a run bundle with tokens, logits, and deterministic network frames.
+# (Add --resolve-hf to the resolver to re-resolve revisions against live HF; needs network + huggingface_hub.)
 ```
+
+Or compose the same spine in a few lines via a recipe — see
+[`workflows/`](workflows/).
 
 ## How It Works
 
