@@ -50,7 +50,7 @@ noted below.
 | `tests/` | per-module + shared | `tests/modules/` per capability; `unit/integration/e2e/determinism` cover the spine |
 | `scripts/`, `scripts/ci/` | shared / platform | repo root |
 | `experiments/{e2e-audit, prover-verifier-demo, freivalds-attestation, multinode-determinism, memory_wipe}` | inference / attestation / memory | `experiments/` — kept on `main` (gates/demos/facades depend on them); other research experiments live on the `experiments` branch |
-| `README.md`, `CLAUDE.md`, `LICENSE`, `CITATION.cff`, `.gitignore`, `.github/`, `.claude/`, `.internal/` | repo-level | repo root |
+| `README.md`, `CLAUDE.md`, `LICENSE`, `CITATION.cff`, `.gitignore`, `.github/`, `.claude/` | repo-level | repo root |
 
 ## The unified interface
 

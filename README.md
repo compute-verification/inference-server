@@ -273,9 +273,14 @@ tests/conformance/      Spec conformance catalog + release blockers (read by CI)
 flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packages repo-wide code; callers invoke `.#`)
 ```
 
-## Container image (out of date)
+## Container image
 
-The published image at `ghcr.io/derpyplops/deterministic-serving-runtime:latest` predates the `/run` and `/replay` endpoints used by the audit demo and is currently private. Use `scripts/demo.sh` (above) for the reviewer flow. To run from a container, rebuild from this checkout (`nix build .#oci`) and load into Docker:
+Building from this checkout is the canonical, reproducible path: `nix build .#oci`
+produces `deterministic-serving-runtime:<git-rev>`. CI also publishes a
+digest-tagged image to GHCR on every push to `main` —
+`ghcr.io/<owner>/deterministic-serving:<git-sha>` (see
+[`.github/workflows/nix-build.yml`](.github/workflows/nix-build.yml)). To run from
+a container, build and load into Docker:
 
 ```bash
 nix build .#oci
