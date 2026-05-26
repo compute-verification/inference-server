@@ -1,10 +1,58 @@
-# Deterministic Serving Stack
+# Verification Tooling
 
-Bitwise identical LLM inference across independent servers. Given the same manifest and container, every run produces the same tokens — verified across 3 models, 2 servers, and 8.88 million tokens.
+This repository is where the research prototypes of the Compute Verification project by Daniel Reuter, Luke Marks, and Jonathan Ng live. They include:
+
+- Full Stack Deterministic Inference
+- Memory Wipes
+- Deterministic LoRA Training
+- ... and more!
+
+We are seeking contributions that advance the state of the art in compute verification. Please contact Daniel Reuter for more information.
 
 > **Status: research prototype.** The determinism guarantees and CI gates are real and tested on H100/GH200 across millions of tokens (see below); the project is not a production-hardened serving stack. Expect rough edges.
 
-> The GitHub URL slug is `verification-tooling`; the project itself is called "Deterministic Serving Stack" throughout the code, flake outputs, and docs.
+## Capabilities & layout
+
+The stack is organized **by function**. Each capability has a documented
+interface ([`modules/`](modules/)). [`workflows/`](workflows/) is the recipe book
+that composes them.
+
+| Capability | What it does | Start here |
+|---|---|---|
+| [build](modules/build/) | Hermetic, reproducible runtime + OCI image | `nix build .#oci` |
+| [inference](modules/inference/) | Bitwise-deterministic vLLM (the c3 config) | `modules/inference/` |
+| [network](modules/network/) | Deterministic L2 egress frames | `modules.network.egress_frames(...)` |
+| [memory](modules/memory/) | PoSE memory wipe + erasure attestation | `modules/memory/` |
+| [attestation](modules/attestation/) | Matmul / token / replay verification | `modules/attestation/verifier`, `modules/attestation/freivalds` |
+| [utils](modules/utils/) | Provisioning, replay server, helpers | `scripts/deploy/`, `scripts/lambda/lambda_cli.py` |
+
+See the [capability map](modules/README.md). Design and implementation plans
+live on the `experiments` branch.
+
+### Repository layout
+
+```
+modules/                Capability layer — each module owns its code, plus shared core/ + Pipeline
+  build/                Hermetic runtime: builder/ + lockfiles/ + nix/   (flake.nix + flake.lock live at root)
+  inference/            Deterministic vLLM — the c3 config
+    server/             Proxy server with POST/GET /manifest endpoint
+    resolver/           Manifest + HF resolution -> lockfile
+    runner/             Manifest + lockfile -> run bundle (mock or vLLM)
+    capture/            Server capture log -> run bundle
+    manifest/           Pydantic manifest model (typed validation)
+    manifests/          Model manifests (Qwen3, Mistral-Large2, DBRX, Llama4-Scout, ... + multinode)
+  network/              networkdet/ (sim TCP/IP frame construction) + native/libnetdet/ (DPDK transmit)
+  attestation/          freivalds/, e2e/, proverdet/ + verifier/ (+ verifier_cli/server) + prover/
+  memory/               PoSE memory wipe + erasure attestation (pose/ sub-package + api.py)
+  utils/                Provisioning / replay helpers (re-exports core/common)
+  core/                 Shared: common/ (canonical JSON, SHA256, schema validation, HF resolution)
+                        + schemas/ (JSON Schema contracts: manifest, lockfile, run_bundle, verify_report, attestation/replay)
+workflows/              Recipe book — runnable compositions of the modules
+demos/                  End-to-end scenarios: e2e-audit (the scripts/demo.sh path), prover-verifier (the protocol demo). Research experiments live on the `experiments` branch.
+scripts/deploy/         Lambda / vast / warden provisioning (utils-owned)
+tests/conformance/      Spec conformance catalog + release blockers (read by CI)
+flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packages repo-wide code; callers invoke `.#`)
+```
 
 ## Results
 
@@ -130,24 +178,6 @@ Or compose the same spine in a few lines via a recipe — see
 | **Scheduling** | Greedy decoding (temperature=0), fixed seed |
 | **Network frames** | Simulated TCP/IP stack with fixed MSS segmentation, software checksums, no offloads |
 
-## Capabilities & layout
-
-The stack is organized **by function**. Each capability has a documented
-interface ([`modules/`](modules/)); [`workflows/`](workflows/) is the recipe book
-that composes them.
-
-| Capability | What it does | Start here |
-|---|---|---|
-| [build](modules/build/) | Hermetic, reproducible runtime + OCI image | `nix build .#oci` |
-| [inference](modules/inference/) | Bitwise-deterministic vLLM (the c3 config) | `modules/inference/` |
-| [network](modules/network/) | Deterministic L2 egress frames | `modules.network.egress_frames(...)` |
-| [memory](modules/memory/) | PoSE memory wipe + erasure attestation | `modules/memory/` |
-| [attestation](modules/attestation/) | Matmul / token / replay verification | `modules/attestation/verifier`, `modules/attestation/freivalds` |
-| [utils](modules/utils/) | Provisioning, replay server, helpers | `scripts/deploy/`, `scripts/lambda/lambda_cli.py` |
-
-See the [capability map](modules/README.md). Design and implementation plans
-live on the `experiments` branch.
-
 ### Workflows & the Pipeline
 
 Every recipe walks the same **artifact spine** — four stages, four named artifacts:
@@ -191,33 +221,6 @@ So the layering is: spine (the CLIs) ▸ `Pipeline` (the chainer) ▸ workflows
 in Airflow / GitHub Actions — it's a ~60-line script, not a DAG orchestrator.
 
 **Demo:** [Prover ↔ Verifier protocol](demos/prover-verifier/reports/memo.md) — wire-protocol demo that detects hidden training and exfiltration from external evidence alone. CPU-only; `cd demos/prover-verifier && ./demo.sh --quick`.
-
-### Repository layout
-
-Each capability physically owns its code:
-
-```
-modules/                Capability layer — each module owns its code, plus shared core/ + Pipeline
-  build/                Hermetic runtime: builder/ + lockfiles/ + nix/   (flake.nix + flake.lock live at root)
-  inference/            Deterministic vLLM — the c3 config
-    server/             Proxy server with POST/GET /manifest endpoint
-    resolver/           Manifest + HF resolution -> lockfile
-    runner/             Manifest + lockfile -> run bundle (mock or vLLM)
-    capture/            Server capture log -> run bundle
-    manifest/           Pydantic manifest model (typed validation)
-    manifests/          Model manifests (Qwen3, Mistral-Large2, DBRX, Llama4-Scout, ... + multinode)
-  network/              networkdet/ (sim TCP/IP frame construction) + native/libnetdet/ (DPDK transmit)
-  attestation/          freivalds/, e2e/, proverdet/ + verifier/ (+ verifier_cli/server) + prover/
-  memory/               PoSE memory wipe + erasure attestation (pose/ sub-package + api.py)
-  utils/                Provisioning / replay helpers (re-exports core/common)
-  core/                 Shared: common/ (canonical JSON, SHA256, schema validation, HF resolution)
-                        + schemas/ (JSON Schema contracts: manifest, lockfile, run_bundle, verify_report, attestation/replay)
-workflows/              Recipe book — runnable compositions of the modules
-demos/                  End-to-end scenarios: e2e-audit (the scripts/demo.sh path), prover-verifier (the protocol demo). Research experiments live on the `experiments` branch.
-scripts/deploy/         Lambda / vast / warden provisioning (utils-owned)
-tests/conformance/      Spec conformance catalog + release blockers (read by CI)
-flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packages repo-wide code; callers invoke `.#`)
-```
 
 ## Build & run
 
