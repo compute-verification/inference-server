@@ -98,8 +98,9 @@ identical examples; Host and Recomp build the same data independently.
 ### Gateway (`servers/gateway.py`, port 8000)
 - `POST /train` accepts a JSON `TrainRequest` (every field optional;
   defaults from the model). Assigns `id = next_id()`, signs, posts to
-  `${TAP_URL}/train` with a 30-minute timeout (training takes minutes,
-  not seconds).
+  `${TAP_URL}/train` with a 10-minute timeout (training takes minutes,
+  not seconds; same timeout used end-to-end across gateway→tap and
+  tap→recomp).
 - Verifies the response envelope. Returns the inner `TrainResponse` as
   plain JSON to the client. 502 on signature failure.
 - `GET /health` returns 200.

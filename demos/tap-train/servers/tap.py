@@ -43,7 +43,7 @@ def _async_verify(recomp_url: str, request_env: dict, response_env: dict) -> Non
             method="POST",
         )
         # Long timeout: /verify re-trains, which can take minutes.
-        with urlopen(req, timeout=900) as resp:
+        with urlopen(req, timeout=600) as resp:
             verdict = json.loads(resp.read())
         sys.stderr.write(f"[tap] verify verdict for id={request_env.get('data', {}).get('id')}: {verdict}\n")
     except HTTPError as exc:

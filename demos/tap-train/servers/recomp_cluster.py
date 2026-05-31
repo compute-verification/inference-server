@@ -211,7 +211,7 @@ class RecompHandler(BaseHTTPRequestHandler):
 
         if not verify(req_env) or not verify(resp_env):
             _log_alarm({
-                "id": req_env.data.id if hasattr(req_env, "data") else None,
+                "id": req_env.data.id,
                 "reason": "bad_signature",
                 "verified_at": utc_now_iso(),
             })
