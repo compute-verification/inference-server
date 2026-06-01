@@ -15,9 +15,20 @@
 set -euo pipefail
 
 cd /root/dss
-export PYTHONPATH=/root/dss
+# Preserve any caller-set PYTHONPATH (used to inject /root/pylibs for peft,
+# which the Nix vast-test image doesn't ship). Prepend repo so the demo's
+# `modules.*` imports resolve.
+export PYTHONPATH="/root/dss${PYTHONPATH:+:$PYTHONPATH}"
 export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
 export CUDA_VISIBLE_DEVICES=0
+# PYTHONHASHSEED must be exported in the SHELL env before Python starts.
+# Setting it via os.environ from inside the workflow (C3_ENV does this) is
+# too late: the seed is consumed at interpreter startup. Without this,
+# peft's `target_modules` is stored as a set and serializes to
+# adapter_config.json in hash-order, which differs across processes →
+# host and recomp produce identical loss curves but different adapter
+# directory digests, and /verify falsely reports a mismatch.
+export PYTHONHASHSEED=0
 : "${RUNNER_MODEL_PATH:?must be set by launcher to local HF snapshot dir}"
 
 LOG=/root/tap-train-logs

@@ -86,6 +86,9 @@ until ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p "$PORT" root@"$IP"
 done
 
 SSH_OPTS="-o StrictHostKeyChecking=no -i $HOME/.ssh/id_ed25519 -p $PORT"
+# scp uses -P (uppercase) for port; -p means preserve mtimes and breaks
+# the command if $PORT is passed as a value to it. Keep these separate.
+SCP_OPTS="-o StrictHostKeyChecking=no -i $HOME/.ssh/id_ed25519 -P $PORT"
 
 # ---- 5. CUDA fixups ----
 echo "[launcher] fixing CUDA symlinks..."
@@ -101,16 +104,10 @@ tar -C "$REPO_ROOT" -czf "$BUNDLE" \
     --exclude='.claude' --exclude='.venv' --exclude='.git' \
     --exclude='__pycache__' --exclude='*.pyc' \
     .
-scp $SSH_OPTS "$BUNDLE" "root@$IP:/root/dss.tar.gz"
+scp $SCP_OPTS "$BUNDLE" "root@$IP:/root/dss.tar.gz"
 ssh $SSH_OPTS root@"$IP" 'mkdir -p /root/dss && python3 -m tarfile -e /root/dss.tar.gz /root/dss && rm -f /root/dss.tar.gz && echo "[remote] extracted"'
 
 # ---- 7. Pre-fetch weights ----
-# Nix image has no pip and no ensurepip, but vllm/torch are baked in and pull
-# huggingface_hub as a dependency, so we can import snapshot_download directly.
-# Also ensure peft is importable — peft is a training-only dep, not bundled
-# with the inference image by default. We install it via the python3 stdlib
-# `urllib`-driven get-pip bootstrap only if needed (rare; the vast-test image
-# now bakes peft in per the prover-verifier demo). For safety:
 echo "[launcher] prefetching weights snapshot..."
 ssh $SSH_OPTS root@"$IP" 'bash -se' <<'PREFETCH'
 set -euo pipefail
@@ -121,16 +118,33 @@ print(p)
 " > /root/snapshot_path
 test -s /root/snapshot_path
 echo "[remote] snapshot_path=$(cat /root/snapshot_path)"
-python3 -c "import peft; import transformers; print('peft', peft.__version__, 'transformers', transformers.__version__)" \
-  || { echo "[remote] FATAL: peft/transformers not importable; image not baked for tap-train" >&2; exit 1; }
 PREFETCH
+
+# ---- 7b. Ship peft + accelerate (training-only deps not in the vast-test image) ----
+# The Nix vast-test image bundles vllm/torch/transformers/huggingface_hub but
+# not peft, and Nix python has no pip or system CA, so the box can't fetch
+# wheels itself. We `uv pip install --no-deps --target` locally, tarball
+# `peft/` + `accelerate/`, scp them, and extract into /root/pylibs. The
+# remaining peft transitive deps (huggingface_hub, safetensors, torch,
+# transformers, numpy, packaging, psutil, tqdm, etc.) are already on the
+# image via vllm.
+echo "[launcher] shipping peft + accelerate wheels..."
+PEFT_BUILD=$(mktemp -d -t tap-train-peft.XXXXXX)
+uv pip install --target "$PEFT_BUILD" --python "$(command -v python3)" --no-deps peft accelerate >/dev/null
+PEFT_BUNDLE=$(mktemp -t tap-train-peft.XXXXXX.tar.gz)
+tar -C "$PEFT_BUILD" -czf "$PEFT_BUNDLE" peft peft-*.dist-info accelerate accelerate-*.dist-info
+scp $SCP_OPTS "$PEFT_BUNDLE" "root@$IP:/root/peft-bundle.tar.gz"
+ssh $SSH_OPTS root@"$IP" 'mkdir -p /root/pylibs && python3 -m tarfile -e /root/peft-bundle.tar.gz /root/pylibs && rm -f /root/peft-bundle.tar.gz && PYTHONPATH=/root/pylibs python3 -c "import peft, accelerate; print(\"[remote] peft\", peft.__version__, \"accelerate\", accelerate.__version__)"'
+rm -rf "$PEFT_BUILD" "$PEFT_BUNDLE"
 
 # ---- 8. Start servers ----
 # Nix image has no `setsid`; the `( ... & )` subshell pattern detaches
 # start_servers.sh from this ssh session, and start_servers.sh in turn
 # uses the same pattern for each of its four child processes.
+# PYTHONPATH carries /root/pylibs so peft+accelerate are importable;
+# start_servers.sh preserves it (prepending /root/dss).
 echo "[launcher] starting servers..."
-ssh $SSH_OPTS root@"$IP" "bash -c '(cd /root/dss && export RUNNER_MODEL_PATH=\$(cat /root/snapshot_path) && nohup bash demos/tap-train/scripts/start_servers.sh > /root/start.out 2>&1 < /dev/null &)'"
+ssh $SSH_OPTS root@"$IP" "bash -c '(cd /root/dss && export PYTHONPATH=/root/pylibs && export RUNNER_MODEL_PATH=\$(cat /root/snapshot_path) && nohup bash demos/tap-train/scripts/start_servers.sh > /root/start.out 2>&1 < /dev/null &)'"
 
 # ---- 9. Wait for Gateway externally ----
 echo "[launcher] waiting for Gateway /health on $IP:8000 (up to 600s)..."
