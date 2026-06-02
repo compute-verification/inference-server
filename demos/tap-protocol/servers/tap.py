@@ -52,9 +52,38 @@ def _async_verify(recomp_url: str, request_env: dict, response_env: dict) -> Non
         sys.stderr.write(f"[tap] verify failed: {exc}\n")
 
 
+def _async_proof_copy(proof_server_url: str, request_env: dict, response_env: dict) -> None:
+    """Fire-and-forget POST of the verified (req, resp) pair to the proof server.
+
+    The proof server is the developer-controlled single egress channel to the
+    auditor (see ``demos/proof-server/plan.md``). Failures here never fail the
+    client request — proof generation is strictly async.
+    """
+    try:
+        body = json.dumps({
+            "request_data": request_env,
+            "response_data": response_env,
+        }).encode("utf-8")
+        req = Request(
+            f"{proof_server_url}/tap-copy",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(req, timeout=30) as resp:
+            resp.read()
+    except HTTPError as exc:
+        sys.stderr.write(f"[tap] proof-copy HTTP {exc.code}: {exc.reason}\n")
+    except URLError as exc:
+        sys.stderr.write(f"[tap] proof-copy unreachable: {exc.reason}\n")
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"[tap] proof-copy failed: {exc}\n")
+
+
 class TapHandler(BaseHTTPRequestHandler):
     host_url: str = ""
     recomp_url: str = ""
+    proof_server_url: str = ""  # empty disables the proof-server fan-out
 
     def _send_json(self, code: int, body: dict) -> None:
         payload = json.dumps(body).encode("utf-8")
@@ -122,6 +151,14 @@ class TapHandler(BaseHTTPRequestHandler):
             daemon=True,
         ).start()
 
+        # Second fan-out: the proof server, if configured.
+        if self.proof_server_url:
+            threading.Thread(
+                target=_async_proof_copy,
+                args=(self.proof_server_url, req_env.model_dump(), resp_env.model_dump()),
+                daemon=True,
+            ).start()
+
     def log_message(self, format, *args):  # noqa: A002
         sys.stderr.write("[tap] " + (format % args) + "\n")
 
@@ -137,10 +174,14 @@ def main() -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--host-url", default="http://127.0.0.1:8020")
     parser.add_argument("--recomp-url", default="http://127.0.0.1:8030")
+    parser.add_argument("--proof-server-url", default="",
+                        help="Optional. If set, every verified envelope pair is "
+                             "also POSTed to <url>/tap-copy.")
     args = parser.parse_args()
 
     TapHandler.host_url = args.host_url.rstrip("/")
     TapHandler.recomp_url = args.recomp_url.rstrip("/")
+    TapHandler.proof_server_url = args.proof_server_url.rstrip("/")
 
     server = ThreadedHTTPServer((args.host, args.port), TapHandler)
 
@@ -150,7 +191,9 @@ def main() -> int:
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    print(f"[tap] listening on {args.host}:{args.port}; host={TapHandler.host_url}; recomp={TapHandler.recomp_url}")
+    ps = TapHandler.proof_server_url or "<disabled>"
+    print(f"[tap] listening on {args.host}:{args.port}; host={TapHandler.host_url}; "
+          f"recomp={TapHandler.recomp_url}; proof_server={ps}")
     sys.stdout.flush()
     try:
         server.serve_forever()
