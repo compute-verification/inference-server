@@ -3,35 +3,56 @@
 
 The Tap forwards every verified ``(request_env, response_env)`` pair here.
 The proof server appends both envelopes' ``EnvelopeData`` to its append-only
-ledger. On ``POST /commit`` it (a) builds a Merkle root over the current
-ledger, (b) signs the root with its own Ed25519 keypair, (c) shells out to
-``proof-server-host`` to generate either an SP1 execute trace (``--quick``)
-or a full Plonk proof.
+ledger. On ``POST /commit?nonce=...`` it (a) builds a Merkle root over the
+rows committed so far, (b) signs the root with its own Ed25519 keypair,
+(c) shells out to ``proof-server-host`` (execute or prove), (d) pins the
+rows + pubkey set + public outputs to that nonce. Subsequent reads at
+``GET /ledger?nonce=...`` / ``/signer_pubkeys?nonce=...`` /
+``/public_outputs?nonce=...`` serve from the pinned snapshot so the
+auditor sees the same bytes the SP1 program committed to.
 
 The auditor never talks to the Tap, the gateways, or anything else inside
-the datacenter -- it only reads from this server:
+the datacenter -- it only reads from this server.
 
-  GET /ledger          → the published ``EnvelopeData`` rows
-  GET /signer_pubkeys  → the Ed25519 pubkey set the auditor needs out-of-band
-  GET /public_outputs  → the SP1 program's committed public outputs
-  GET /proof.bin       → the proof bytes (only in --prove mode)
+What this proves (and doesn't), v0
+----------------------------------
+The proof server is the single signer in v0; it holds the only Ed25519
+keypair. The SP1 program proves "I (the proof server) know a valid
+signature under my own key over a Merkle root containing every leaf I
+published to the auditor for this nonce." That's a *self-attestation*
+binding the auditor's nonce, the rows the auditor will fetch, and the
+two public digests together — it does NOT independently bind those rows
+to anything the gateways or Tap observed. A v1 with per-gateway keys
+would extend the witness array to verify multiple signers; the SP1
+program is already parameterised over ``signer_idx``.
 
-The auditor supplies its nonce as ``?nonce=<hex>`` on ``POST /commit``.
-v0 is single-tenant: one ledger, one commit-cycle, one auditor.
+The completeness direction — "did the proof server publish ALL the
+envelopes the Tap saw?" — is explicitly out of scope; see
+``demos/proof-server/plan.md`` §8.
 
-Threat model.
-    The raw Ed25519 signature over the Merkle root stays inside this
-    process. The SP1 program is the only thing that ever sees it, and the
-    program's public outputs do not include it. The auditor sees only the
-    public outputs (auditor_nonce, ledger_digest, pubkey_set_digest, counts).
-    This is the doc's subliminal-channel defense, concrete: even if the
-    proof server is compromised, exfiltrating bits via the signature
-    requires breaking the SP1 zero-knowledge property.
+Tap-copy authentication
+-----------------------
+The Tap HMAC-signs every envelope it forwards (PR #19's ``SignedEnvelope``).
+``_handle_tap_copy`` re-verifies that HMAC before recording anything,
+so a process that can reach the localhost ``/tap-copy`` port still
+cannot inject rows without the shared HMAC key. This is integrity on the
+loopback boundary, not strong authentication; see plan.md §8.
+
+Subliminal-channel defense
+--------------------------
+The raw Ed25519 signature over the Merkle root stays inside this process.
+The SP1 program is the only thing that ever sees it, and the program's
+public outputs do not include it. Even before that hiding step,
+deterministic Ed25519 leaves zero attacker-influenceable bits in the
+signature itself. The residual auditor-visible channel is the
+``ledger_digest`` (collision-bounded under SHA-256) plus the proof bytes
+themselves in ``--prove`` mode (SP1 proof encoding is deterministic
+given the witness + public inputs).
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
+import importlib.util
 import json
 import signal
 import subprocess
@@ -57,10 +78,30 @@ from modules.proof_server.api import (  # noqa: E402
 )
 
 
+# Load demos/tap-protocol/servers/envelope.py by absolute file path so we
+# can re-verify the inner HMAC without polluting sys.path with a hyphen-
+# named directory (which would collide with our own ``servers`` package).
+# Register in sys.modules and rebuild the Pydantic model so the
+# ``from __future__ import annotations`` forward references inside the
+# tap-protocol module resolve correctly.
+_TAP_ENV_PATH = REPO_ROOT / "demos" / "tap-protocol" / "servers" / "envelope.py"
+_spec = importlib.util.spec_from_file_location("_tap_protocol_envelope", _TAP_ENV_PATH)
+_tap_env = importlib.util.module_from_spec(_spec)
+sys.modules["_tap_protocol_envelope"] = _tap_env
+_spec.loader.exec_module(_tap_env)  # type: ignore[union-attr]
+_tap_env.SignedEnvelope.model_rebuild()
+_TapSignedEnvelope = _tap_env.SignedEnvelope
+_verify_tap_envelope = _tap_env.verify
+
+
 # Fixed seed so the demo is reproducible. Real deployments would generate
 # the keypair once at provisioning time and hold it in attestable hardware.
 DEMO_SEED = b"proof-server-demo-seed----------"
 assert len(DEMO_SEED) == 32
+
+# Default cap on how long a single /commit's SP1 host invocation may run.
+# Tuned for execute mode on modest hardware; prove mode needs more.
+DEFAULT_SP1_TIMEOUT_S = 1200
 
 
 class _Ledger:
@@ -98,24 +139,39 @@ class _Ledger:
 
 
 class _PublicState:
-    """Last commit's public outputs + an optional proof binary path.
+    """Map ``auditor_nonce -> {public_outputs, ledger_snapshot, signer_pubkeys,
+    proof_path}``.
 
-    The auditor polls ``GET /public_outputs`` and (in --prove mode)
-    ``GET /proof.bin`` to read these.
+    Pinning the snapshot by nonce closes the race the adversarial review
+    flagged: an envelope arriving on a `_handle_tap_copy` thread between
+    `_Ledger.snapshot()` and the auditor's `GET /ledger` would otherwise
+    show up in the published ledger but not in the SP1 program's view,
+    breaking digest equality. With the pinned-by-nonce surface, the auditor
+    always fetches the exact rows / pubkeys / proof tied to their commit.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self.public_outputs: dict | None = None
-        self.proof_path: Path | None = None
-        self.ledger_snapshot: list[dict] | None = None
+        self._by_nonce: dict[str, dict] = {}
 
-    def set(self, *, public_outputs: dict, proof_path: Path | None,
-            ledger_snapshot: list[dict]) -> None:
+    def set(self, *, nonce_hex: str, public_outputs: dict,
+            proof_path: Path | None, ledger_snapshot: list[dict],
+            signer_pubkeys: list[str]) -> None:
         with self._lock:
-            self.public_outputs = public_outputs
-            self.proof_path = proof_path
-            self.ledger_snapshot = ledger_snapshot
+            self._by_nonce[nonce_hex] = {
+                "public_outputs": public_outputs,
+                "proof_path": proof_path,
+                "ledger_snapshot": ledger_snapshot,
+                "signer_pubkeys": signer_pubkeys,
+            }
+
+    def get(self, nonce_hex: str) -> dict | None:
+        with self._lock:
+            return self._by_nonce.get(nonce_hex)
+
+
+def _is_hex_nonce(s: str) -> bool:
+    return len(s) == 64 and all(c in "0123456789abcdef" for c in s.lower())
 
 
 class ProofServerHandler(BaseHTTPRequestHandler):
@@ -128,6 +184,7 @@ class ProofServerHandler(BaseHTTPRequestHandler):
     pk_hex: str = ""
     host_bin: Path = None  # type: ignore[assignment]
     work_dir: Path = None  # type: ignore[assignment]
+    sp1_timeout_s: int = DEFAULT_SP1_TIMEOUT_S
 
     def _send_json(self, code: int, body) -> None:
         payload = json.dumps(body).encode("utf-8")
@@ -144,8 +201,20 @@ class ProofServerHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _record_for_nonce(self, query: str) -> dict | None:
+        params = parse_qs(query)
+        nonce_hex = (params.get("nonce") or [""])[0].lower()
+        if not _is_hex_nonce(nonce_hex):
+            self._send_json(400, {"error": "missing or malformed ?nonce= (need 64 hex chars)"})
+            return None
+        record = self.public_state.get(nonce_hex)
+        if record is None:
+            self._send_json(404, {"error": "no commit for that nonce"})
+            return None
+        return record
+
     # ----------------------------------------------------------------------
-    # GET surface (the auditor's read-only window into the proof server)
+    # GET surface (the auditor's read-only window)
     # ----------------------------------------------------------------------
 
     def do_GET(self) -> None:
@@ -154,21 +223,29 @@ class ProofServerHandler(BaseHTTPRequestHandler):
         if path == "/health":
             return self._send_json(200, {"status": "ok", "rows": len(self.ledger)})
         if path == "/ledger":
-            rows, _ = self.ledger.snapshot()
+            record = self._record_for_nonce(parsed.query)
+            if record is None:
+                return
             return self._send_bytes(200, "application/json",
-                                    canonical_json_bytes(rows))
+                                    canonical_json_bytes(record["ledger_snapshot"]))
         if path == "/signer_pubkeys":
+            record = self._record_for_nonce(parsed.query)
+            if record is None:
+                return
             return self._send_bytes(200, "application/json",
-                                    canonical_json_bytes([self.pk_hex]))
+                                    canonical_json_bytes(record["signer_pubkeys"]))
         if path == "/public_outputs":
-            po = self.public_state.public_outputs
-            if po is None:
-                return self._send_json(409, {"error": "no commit has run yet"})
-            return self._send_json(200, po)
+            record = self._record_for_nonce(parsed.query)
+            if record is None:
+                return
+            return self._send_json(200, record["public_outputs"])
         if path == "/proof.bin":
-            pp = self.public_state.proof_path
+            record = self._record_for_nonce(parsed.query)
+            if record is None:
+                return
+            pp = record["proof_path"]
             if pp is None or not pp.exists():
-                return self._send_json(404, {"error": "no proof; --prove not run"})
+                return self._send_json(404, {"error": "no proof; commit was --execute, not --prove"})
             return self._send_bytes(200, "application/octet-stream", pp.read_bytes())
         return self._send_json(404, {"error": f"not found: {path}"})
 
@@ -194,17 +271,30 @@ class ProofServerHandler(BaseHTTPRequestHandler):
     def _handle_tap_copy(self, raw: bytes) -> None:
         try:
             body = json.loads(raw or b"{}")
-            req_env = body["request_data"]
-            resp_env = body["response_data"]
+            req_env_raw = body["request_data"]
+            resp_env_raw = body["response_data"]
         except Exception as exc:  # noqa: BLE001
             return self._send_json(400, {"error": f"bad tap-copy: {exc}"})
 
-        # The Tap has already HMAC-verified the envelopes. The proof server
-        # publishes the EnvelopeData payloads (not the HMAC signatures) -- the
-        # auditor sees only what the proof server chooses to publish.
+        # Re-verify the inner HMAC envelopes the Tap signed. This re-check
+        # is integrity for the loopback boundary -- any process with the
+        # shared HMAC key (which is hardcoded in tap-protocol/envelope.py)
+        # can still post here, but a process that lacks the key cannot.
         try:
-            self.ledger.append(req_env["data"])
-            self.ledger.append(resp_env["data"])
+            req_env = _TapSignedEnvelope.model_validate(req_env_raw)
+            resp_env = _TapSignedEnvelope.model_validate(resp_env_raw)
+        except Exception as exc:  # noqa: BLE001
+            return self._send_json(400, {"error": f"bad envelope shape: {exc}"})
+        if not _verify_tap_envelope(req_env):
+            return self._send_json(401, {"error": "bad request envelope HMAC"})
+        if not _verify_tap_envelope(resp_env):
+            return self._send_json(401, {"error": "bad response envelope HMAC"})
+
+        # The published row is the inner EnvelopeData dict; the HMAC signature
+        # is consumed here and never crosses to the auditor.
+        try:
+            self.ledger.append(req_env.data.model_dump())
+            self.ledger.append(resp_env.data.model_dump())
         except Exception as exc:  # noqa: BLE001
             return self._send_json(400, {"error": f"could not record: {exc}"})
 
@@ -212,16 +302,21 @@ class ProofServerHandler(BaseHTTPRequestHandler):
 
     def _handle_commit(self, query: str) -> None:
         params = parse_qs(query)
-        nonce_hex = (params.get("nonce") or [""])[0]
-        if len(nonce_hex) != 64:
-            return self._send_json(400, {"error": "missing or malformed nonce= (need 64 hex chars)"})
+        nonce_hex = (params.get("nonce") or [""])[0].lower()
+        if not _is_hex_nonce(nonce_hex):
+            return self._send_json(400, {"error": "missing or malformed ?nonce= (need 64 hex chars)"})
         mode = (params.get("mode") or ["execute"])[0]
         if mode not in {"execute", "prove"}:
             return self._send_json(400, {"error": f"bad mode {mode!r}; must be execute or prove"})
 
+        # Single snapshot used for both the SP1 witness and the auditor's
+        # later GET fetches; pinned to this nonce so a later /tap-copy
+        # cannot make the auditor see different bytes than SP1 saw.
         rows, leaf_index_of = self.ledger.snapshot()
         if not rows:
             return self._send_json(409, {"error": "ledger is empty -- nothing to commit"})
+
+        signer_pubkeys = [self.pk_hex]
 
         try:
             leaves = [leaf_hash(r) for r in rows]
@@ -229,7 +324,7 @@ class ProofServerHandler(BaseHTTPRequestHandler):
             signature = sign_root(self.sk, tree.root)
 
             witnesses = assemble_witness(
-                rows, [self.pk_hex],
+                rows, signer_pubkeys,
                 tree=tree,
                 leaf_index_of=leaf_index_of,
                 signed_root=tree.root,
@@ -238,7 +333,7 @@ class ProofServerHandler(BaseHTTPRequestHandler):
             )
             stdin_json = {
                 "auditor_nonce": nonce_hex,
-                "signer_pubkeys": [self.pk_hex],
+                "signer_pubkeys": signer_pubkeys,
                 "ledger_rows_canon_hex": [
                     w.row_canonical_json.rstrip(b"\n").hex() for w in witnesses
                 ],
@@ -263,19 +358,27 @@ class ProofServerHandler(BaseHTTPRequestHandler):
                          f"modules/proof_server/sp1/host/Cargo.toml"
             })
 
-        proof_out = (self.work_dir / "proof.bin") if mode == "prove" else None
+        # In --prove mode each nonce gets its own proof file so a later
+        # commit doesn't overwrite an earlier audit's bytes.
+        proof_out = (self.work_dir / f"proof-{nonce_hex}.bin") if mode == "prove" else None
         args = [str(self.host_bin)]
         if mode == "execute":
             args.append("--execute")
         else:
             args.extend(["--prove", "--proof", str(proof_out)])
 
-        completed = subprocess.run(
-            args,
-            input=json.dumps(stdin_json).encode("utf-8"),
-            capture_output=True,
-            check=False,
-        )
+        try:
+            completed = subprocess.run(
+                args,
+                input=json.dumps(stdin_json).encode("utf-8"),
+                capture_output=True,
+                check=False,
+                timeout=self.sp1_timeout_s,
+            )
+        except subprocess.TimeoutExpired:
+            return self._send_json(504, {
+                "error": f"SP1 host exceeded {self.sp1_timeout_s}s timeout",
+            })
         if completed.returncode != 0:
             err = completed.stderr.decode("utf-8", errors="replace")
             return self._send_json(500, {
@@ -290,9 +393,11 @@ class ProofServerHandler(BaseHTTPRequestHandler):
             return self._send_json(500, {"error": f"unparseable SP1 output: {exc}"})
 
         self.public_state.set(
+            nonce_hex=nonce_hex,
             public_outputs=public,
             proof_path=proof_out if proof_out and proof_out.exists() else None,
             ledger_snapshot=rows,
+            signer_pubkeys=signer_pubkeys,
         )
         return self._send_json(200, {
             "status": "ok",
@@ -318,7 +423,9 @@ def main() -> int:
                         default=REPO_ROOT / "modules/proof_server/sp1/target/release/proof-server-host",
                         help="Path to the compiled proof-server-host binary")
     parser.add_argument("--work-dir", type=Path, default=Path("/tmp/proof-server-state"),
-                        help="Where to write the proof.bin in --prove mode")
+                        help="Where to write per-nonce proof.bin files in --prove mode")
+    parser.add_argument("--sp1-timeout", type=int, default=DEFAULT_SP1_TIMEOUT_S,
+                        help="Per-commit SP1 host subprocess timeout, seconds")
     args = parser.parse_args()
 
     args.work_dir.mkdir(parents=True, exist_ok=True)
@@ -331,6 +438,7 @@ def main() -> int:
     ProofServerHandler.public_state = _PublicState()
     ProofServerHandler.host_bin = args.host_bin
     ProofServerHandler.work_dir = args.work_dir
+    ProofServerHandler.sp1_timeout_s = args.sp1_timeout
 
     server = ThreadedHTTPServer((args.host, args.port), ProofServerHandler)
 
@@ -340,8 +448,8 @@ def main() -> int:
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    print(f"[proof-server] listening on {args.host}:{args.port}; pubkey={ProofServerHandler.pk_hex[:16]}...; "
-          f"host_bin={args.host_bin}")
+    print(f"[proof-server] listening on {args.host}:{args.port}; "
+          f"pubkey={ProofServerHandler.pk_hex[:16]}...; host_bin={args.host_bin}")
     sys.stdout.flush()
     try:
         server.serve_forever()

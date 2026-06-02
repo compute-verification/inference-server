@@ -72,7 +72,7 @@ def assemble_witness(
     signer_pubkeys_hex: list[str],
     *,
     tree,
-    leaf_index_of: dict[int, int],
+    leaf_index_of: dict[str, int],
     signed_root: bytes,
     signature: bytes,
     signer_pubkey_hex: str,

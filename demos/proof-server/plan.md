@@ -6,8 +6,11 @@ design doc. The proof server is a **proxy**: it sits between the
 datacenter (Tap, Host Cluster, Recomp) and a new auditor process. The
 Tap fans out a copy of every verified envelope to the proof server; the
 auditor only ever reads from the proof server. The proof server emits a
-zero-knowledge proof (via SP1) that the published rows are backed by a
-valid signed Merkle attestation it produced over its own ledger.
+zero-knowledge proof (via SP1) that the rows it published to the auditor
+for a given nonce are bound to a valid signed Merkle attestation *the
+proof server produced itself*. v0 has one signer (the proof server);
+binding the proof server's view to anything outside its own boundary
+(per-gateway keys, completeness vs the Tap) is v1+.
 
 `./demo.sh --quick → ALL PASS` runs the full path locally in `--mock`
 mode (no GPU).
@@ -123,9 +126,24 @@ n_signers           (4 B u32 LE)
 ```
 
 The auditor independently recomputes `ledger_digest` and
-`pubkey_set_digest` from `GET /ledger` and `GET /signer_pubkeys`, and
-asserts equality with the committed bytes. The nonce check binds the
-proof to *this* audit.
+`pubkey_set_digest` from `GET /ledger?nonce=N` and
+`GET /signer_pubkeys?nonce=N`, and asserts equality with the committed
+bytes. The nonce check binds the proof to *this* audit. The proof
+server pins the rows + pubkey set + public outputs to the nonce at
+commit time, so a later `/tap-copy` cannot make the auditor see
+different bytes than the SP1 program saw.
+
+**What this DOES NOT prove.** Since the proof server is the signer and
+the committer, the SP1 program's predicate reduces to "I know a valid
+signature under my own pubkey over a Merkle root containing exactly
+these leaves." That binds the auditor's nonce, the rows the auditor
+fetches, and the two digests together, so the proof server cannot
+publish a different ledger to two auditors with the same nonce. It does
+**not** independently bind those rows to anything the gateways or the
+Tap observed — that is the **completeness direction** and is out of
+scope for v0 (see §8). The SP1 program is already parameterised over
+`signer_idx`, so a v1 with per-gateway keys is a witness-assembly
+change, not a circuit change.
 
 
 ## 5. Why deterministic Ed25519
@@ -138,6 +156,18 @@ of the on-the-wire envelopes inside the datacenter continue to use the
 PR-#19 HMAC envelope. The proof server holds the only Ed25519 keypair
 in the system.
 
+**Residual auditor-visible channels.** Per audit, the auditor receives:
+(a) its own nonce echoed back (zero attacker entropy); (b) the
+`ledger_digest` (collision-bounded under SHA-256); (c) the
+`pubkey_set_digest` (also SHA-256-bounded, and in v0 deterministic from
+a fixed key seed); (d) two LE `u32` counts; and (e) in `--prove` mode,
+the SP1 proof bytes themselves. The proof bytes are deterministic given
+the witness + public inputs (SP1 uses Fiat–Shamir over the public
+transcript), so a non-malicious prover leaks no per-audit randomness
+through the proof. A *malicious* prover with subliminal control inside
+the SP1 prover stack could in principle encode bits there; bounding
+that channel is open work.
+
 
 ## 6. Demo flow (`./demo.sh --quick`)
 
@@ -146,15 +176,25 @@ in the system.
    at the proof server), and the `gateway`. Plus the new
    `proof_server` (port 8040).
 2. Send two requests through the Gateway. The Tap forwards each
-   verified envelope pair to the proof server's `POST /tap-copy`.
+   verified envelope pair to the proof server's `POST /tap-copy`,
+   which **re-verifies the inner HMAC** before recording.
 3. Run `audit.py`: generates a nonce, POSTs `/commit?nonce=...` (which
-   shells the SP1 host in execute mode), then fetches `/ledger`,
-   `/signer_pubkeys`, `/public_outputs`, recomputes the two digests,
-   and verifies all five fields of the public outputs match.
+   shells the SP1 host in execute mode), then fetches
+   `/ledger?nonce=...`, `/signer_pubkeys?nonce=...`,
+   `/public_outputs?nonce=...`, recomputes the two digests, verifies
+   all five fields of the public outputs match.
 4. Print `ALL PASS`.
 
 `./demo.sh --prove` swaps execute for prove and additionally fetches
-`/proof.bin` + runs the SP1 verifier on the bytes.
+`/proof.bin?nonce=...` + runs the SP1 verifier on the bytes.
+
+**`--quick` is NOT a ZK proof.** SP1's `execute` mode runs the RISC-V
+guest in an interpreter and surfaces `assert!` panics as a zero-byte
+public output (the host turns that into a non-zero exit). It does NOT
+generate or check the constraint system. `--quick` exists to validate
+the architecture end-to-end without paying the proving cost. The
+cryptographic guarantee requires `--prove`. Both `audit.py` and the
+SP1 host print a banner making this explicit at run time.
 
 
 ## 7. Toolchain notes
