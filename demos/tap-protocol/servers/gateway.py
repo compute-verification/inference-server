@@ -3,6 +3,14 @@
 Accepts a plain `InferenceRequest` JSON from the client, wraps it in a signed
 envelope with a monotonic id, relays to the Tap, verifies the response
 envelope, unwraps the response, returns it to the client.
+
+Also exposes two thin read-only pass-throughs from the Tap so a public
+deployment only needs to expose the Gateway port:
+- GET /events  → SSE stream proxied from Tap's /events
+- GET /capture → JSON snapshot proxied from Tap's /capture
+
+Both responses get CORS headers so a browser-side viewer can call them
+cross-origin without a backend proxy.
 """
 from __future__ import annotations
 
@@ -49,13 +57,83 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(payload)
 
     def do_GET(self) -> None:
         if self.path == "/health":
             return self._send_json(200, {"status": "ok"})
+        if self.path == "/events":
+            return self._proxy_sse(f"{self.tap_url}/events")
+        if self.path.startswith("/capture"):
+            return self._proxy_capture()
         return self._send_json(404, {"error": "not found"})
+
+    def do_OPTIONS(self) -> None:
+        # CORS preflight (browser fetches sometimes send this)
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Max-Age", "86400")
+        self.end_headers()
+
+    def _proxy_capture(self) -> None:
+        try:
+            with urlopen(f"{self.tap_url}/capture", timeout=10) as r:
+                body = r.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(body)
+        except (HTTPError, URLError) as exc:
+            return self._send_json(502, {"error": f"tap unreachable: {exc}"})
+
+    def _proxy_sse(self, upstream_url: str) -> None:
+        """Stream upstream SSE bytes back to the client until either side closes.
+
+        Forwards LINE-AT-A-TIME (not chunk-at-a-time): SSE messages are
+        line-delimited (`data: …\\n\\n`) and arrive at the Tap one event at
+        a time. Reading fixed-size chunks via `upstream.read(N)` blocks
+        until N bytes accumulate — a single 200-byte event would then sit
+        in the read buffer until another event came along and pushed the
+        byte count over the threshold. Using `readline()` instead, each
+        event flushes through the proxy as soon as the Tap writes it.
+        """
+        try:
+            # Build a Request with Accept: text/event-stream so the upstream
+            # treats us like an SSE subscriber, not a one-shot GET.
+            req = Request(upstream_url, headers={"Accept": "text/event-stream"})
+            upstream = urlopen(req, timeout=600)
+        except (HTTPError, URLError) as exc:
+            return self._send_json(502, {"error": f"tap unreachable: {exc}"})
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache, no-transform")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+
+        try:
+            while True:
+                line = upstream.readline()
+                if not line:
+                    break
+                try:
+                    self.wfile.write(line)
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    break
+        finally:
+            try:
+                upstream.close()
+            except Exception:
+                pass
 
     def do_POST(self) -> None:
         if self.path != "/request":

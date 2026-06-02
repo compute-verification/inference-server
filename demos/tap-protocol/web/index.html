@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verified inference</title>
+<style>
+  :root {
+    --bg:        #fafaf6;
+    --paper:     #ffffff;
+    --ink:       #1a1a1a;
+    --ink-2:     #3d3d3d;
+    --muted:     #707070;
+    --rule:      #d4cfc1;
+    --rule-soft: #ebe7da;
+    --accent:    #6b573b;   /* warm umber — used for active state only */
+    --ok:        #2c6e3e;
+    --bad:       #a02121;
+    --warm:      #8a6a1a;
+    --serif:     "Charter", "Iowan Old Style", "Source Serif Pro", Georgia, "Times New Roman", serif;
+    --sans:      -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    --mono:      ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: var(--serif);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .container { max-width: 980px; margin: 0 auto; padding: 3rem 1.75rem 5rem; }
+
+  /* Header */
+  header { margin-bottom: 2.5rem; }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600; font-size: 2rem;
+    margin: 0 0 0.45rem; letter-spacing: -0.01em; color: var(--ink);
+  }
+  .lede {
+    font-family: var(--serif);
+    color: var(--ink-2); font-size: 1.08rem; margin: 0; max-width: 62ch; line-height: 1.5;
+  }
+  .lede em { font-style: italic; }
+  .status {
+    display: inline-block;
+    font-family: var(--sans); font-size: 0.74rem; font-variant: small-caps; letter-spacing: 0.06em;
+    color: var(--muted); margin-left: 0.5rem; vertical-align: middle;
+  }
+  .status::before {
+    content: "● "; color: var(--muted);
+  }
+  .status.on::before    { color: var(--ok); }
+  .status.warm::before  { color: var(--warm); }
+  .status.bad::before   { color: var(--bad); }
+
+  /* Prompt input — minimal, no card */
+  .prompt-row {
+    display: flex; gap: 0.6rem; align-items: stretch;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 1.25rem; margin-bottom: 1.75rem;
+  }
+  .prompt-row textarea {
+    flex: 1; min-height: 2.3rem; max-height: 9rem;
+    font-family: var(--serif); font-size: 1.05rem; line-height: 1.4;
+    color: var(--ink); background: transparent;
+    border: none; outline: none; padding: 0.3rem 0;
+    resize: vertical;
+  }
+  .prompt-row textarea::placeholder { color: var(--muted); font-style: italic; }
+  .prompt-row select, .prompt-row button {
+    font-family: var(--sans); font-size: 0.85rem;
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 3px;
+    padding: 0.35rem 0.7rem; cursor: pointer;
+  }
+  .prompt-row button { font-weight: 600; min-width: 6rem; }
+  .prompt-row button:hover:not(:disabled) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .prompt-row button:disabled { color: var(--muted); cursor: wait; }
+
+  /* The main table — the data surface */
+  table.runs {
+    width: 100%; border-collapse: collapse;
+    font-family: var(--serif);
+  }
+  table.runs thead th {
+    text-align: left; vertical-align: bottom;
+    font-family: var(--sans); font-weight: 500;
+    font-size: 0.7rem; color: var(--muted);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0 0.6rem 0.45rem; border-bottom: 1px solid var(--rule);
+  }
+  table.runs tbody tr {
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  table.runs tbody tr.alarm    { background: rgba(160, 33, 33, 0.04); }
+  table.runs tbody tr.current  { background: rgba(107, 87, 59, 0.05); }
+  table.runs td {
+    padding: 0.85rem 0.6rem 0.55rem; vertical-align: top;
+    font-size: 0.97rem; line-height: 1.4; color: var(--ink);
+  }
+  table.runs td.t-time { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+  table.runs td.t-prompt { font-style: italic; color: var(--ink-2); }
+  table.runs td.t-answer { color: var(--ink); }
+  table.runs td.t-answer .placeholder { color: var(--muted); font-style: italic; }
+  table.runs td.t-verdict { font-family: var(--sans); font-size: 0.78rem; white-space: nowrap; text-align: left; }
+
+  /* Topology — live, but minimal: thin gray lines, animated packet dots */
+  .topology {
+    margin: 0 0 1.75rem;
+    padding: 1.1rem 0 0.9rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .topology svg { display: block; width: 100%; height: 140px; overflow: visible; }
+  .topo-edge { stroke: var(--rule); stroke-width: 1.2; fill: none; }
+  .topo-edge.async { stroke-dasharray: 4 3; opacity: 0.85; }
+  .topo-edge.active { stroke: var(--ink-2); stroke-width: 1.6; transition: stroke 0.2s, stroke-width 0.2s; }
+  .topo-node { fill: var(--paper); stroke: var(--rule); stroke-width: 1; transition: stroke 0.25s, fill 0.25s; }
+  .topo-node.active { stroke: var(--ink-2); fill: var(--rule-soft); }
+  .topo-node.ok     { stroke: var(--ok); fill: rgba(44,110,62,0.10); }
+  .topo-node.bad    { stroke: var(--bad); fill: rgba(160,33,33,0.10); }
+  .topo-label { font-family: var(--sans); font-size: 11px; fill: var(--ink); text-anchor: middle; letter-spacing: 0.02em; font-weight: 500; }
+  .topo-sub   { font-family: var(--sans); font-size: 9.5px; fill: var(--muted); text-anchor: middle; }
+  .topo-packet { fill: var(--ink-2); }
+  .topo-packet.ok  { fill: var(--ok); }
+  .topo-packet.bad { fill: var(--bad); }
+  .topo-arrowhead { fill: var(--rule); }
+
+  /* Timing strip — 4-segment progress, encodes the 4 stages of the protocol */
+  .strip {
+    display: inline-grid; grid-template-columns: repeat(4, 1fr);
+    gap: 2px; width: 7rem; height: 4px; margin-top: 0.45rem;
+    background: var(--rule-soft); border-radius: 1px;
+  }
+  .strip span {
+    background: transparent;
+    transition: background-color 0.25s ease-out;
+  }
+  .strip span.done { background: var(--ink-2); }
+  .strip.ok span.done   { background: var(--ok); }
+  .strip.bad span.done  { background: var(--bad); }
+
+  /* Digest detail under a row */
+  .digest-row td { padding-top: 0; padding-bottom: 0.85rem; font-family: var(--mono); font-size: 0.74rem; color: var(--muted); }
+  .digest-row .pair { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+  .digest-row .pair span { white-space: nowrap; }
+  .digest-row .pair .verifier-bad { color: var(--bad); }
+  .digest-row .pair .verifier-ok  { color: var(--ok); }
+
+  .verdict-ok    { color: var(--ok); }
+  .verdict-bad   { color: var(--bad); }
+  .verdict-warm  { color: var(--warm); }
+
+  /* "How it works" — small, secondary reference diagram */
+  section.how {
+    margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);
+    color: var(--ink-2); font-size: 0.93rem; line-height: 1.6;
+  }
+  section.how h2 {
+    font-family: var(--sans); font-size: 0.7rem; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+    margin: 0 0 0.85rem;
+  }
+  section.how p { margin: 0 0 0.85rem; max-width: 62ch; }
+  section.how .diagram {
+    font-family: var(--mono); font-size: 0.78rem; color: var(--ink-2);
+    background: transparent; line-height: 1.5; margin: 0.6rem 0 0.4rem;
+    white-space: pre;
+  }
+  section.how em { font-style: italic; color: var(--ink-2); }
+
+  footer {
+    margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--rule-soft);
+    color: var(--muted); font-size: 0.78rem; font-family: var(--sans);
+  }
+  footer a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 2px; }
+  footer a:hover { text-decoration-color: var(--ink); }
+
+  /* tiny screens */
+  @media (max-width: 720px) {
+    .container { padding: 2rem 1.1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+    .lede { font-size: 1rem; }
+    table.runs td.t-time { display: none; }
+    .strip { width: 5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Verified inference<span id="status" class="status">offline</span></h1>
+    <p class="lede">
+      Each prompt below is sent to a language model and <em>independently re-run</em> by a verifier on
+      the same hardware. The two outputs are compared bit-for-bit — any divergence is a tamper signal.
+    </p>
+  </header>
+
+  <form class="prompt-row" onsubmit="event.preventDefault();" autocomplete="off">
+    <textarea id="prompt" rows="1" placeholder="Ask the model something…&#10;⌘↩ to send"></textarea>
+    <select id="max-tokens" title="response length">
+      <option value="32">32</option>
+      <option value="64">64</option>
+      <option value="128" selected>128</option>
+      <option value="256">256</option>
+    </select>
+    <button id="submit" type="button">Send</button>
+  </form>
+
+  <div class="topology">
+    <svg viewBox="0 0 800 140" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" class="topo-arrowhead"/>
+        </marker>
+      </defs>
+
+      <!-- nodes: small rectangles, labels above -->
+      <g id="topo-you" transform="translate(40 50)">
+        <text class="topo-label" x="40" y="-8">You</text>
+        <rect class="topo-node" x="0" y="0" width="80" height="36" rx="3"/>
+        <text class="topo-sub" x="40" y="22">browser</text>
+      </g>
+      <g id="topo-gateway" transform="translate(190 50)">
+        <text class="topo-label" x="50" y="-8">Gateway</text>
+        <rect class="topo-node" x="0" y="0" width="100" height="36" rx="3"/>
+        <text class="topo-sub" x="50" y="22">signs prompt</text>
+      </g>
+      <g id="topo-tap" transform="translate(360 50)">
+        <text class="topo-label" x="40" y="-8">Tap</text>
+        <rect class="topo-node" x="0" y="0" width="80" height="36" rx="3"/>
+        <text class="topo-sub" x="40" y="22">relay + copy</text>
+      </g>
+      <g id="topo-host" transform="translate(520 20)">
+        <text class="topo-label" x="60" y="-8">Model</text>
+        <rect class="topo-node" x="0" y="0" width="120" height="36" rx="3"/>
+        <text class="topo-sub" x="60" y="22">Qwen3 generates</text>
+      </g>
+      <g id="topo-recomp" transform="translate(520 90)">
+        <text class="topo-label" x="60" y="-8">Verifier</text>
+        <rect class="topo-node" x="0" y="0" width="120" height="36" rx="3"/>
+        <text class="topo-sub" x="60" y="22">re-runs · compares</text>
+      </g>
+
+      <!-- edges -->
+      <line class="topo-edge" id="edge-you-gateway"     x1="120" y1="68" x2="190" y2="68" marker-end="url(#ah)"/>
+      <line class="topo-edge" id="edge-gateway-tap"     x1="290" y1="68" x2="360" y2="68" marker-end="url(#ah)"/>
+      <line class="topo-edge" id="edge-tap-host"        x1="440" y1="58" x2="520" y2="44" marker-end="url(#ah)"/>
+      <line class="topo-edge" id="edge-host-tap"        x1="520" y1="50" x2="440" y2="64" marker-end="url(#ah)"/>
+      <line class="topo-edge" id="edge-tap-gateway"     x1="360" y1="78" x2="290" y2="78" marker-end="url(#ah)"/>
+      <line class="topo-edge" id="edge-gateway-you"     x1="190" y1="78" x2="120" y2="78" marker-end="url(#ah)"/>
+      <line class="topo-edge async" id="edge-tap-recomp" x1="440" y1="80" x2="520" y2="106" marker-end="url(#ah)"/>
+
+      <g id="topo-packets"></g>
+    </svg>
+  </div>
+
+  <table class="runs">
+    <thead>
+      <tr>
+        <th class="t-time">sent</th>
+        <th class="t-prompt">prompt</th>
+        <th class="t-answer">answer</th>
+        <th>progress</th>
+        <th class="t-verdict">verifier</th>
+      </tr>
+    </thead>
+    <tbody id="runs-body">
+      <tr><td colspan="5" style="padding: 1.2rem 0.6rem; color: var(--muted); font-style: italic;">No prompts yet.</td></tr>
+    </tbody>
+  </table>
+
+  <section class="how">
+    <h2>How it works</h2>
+    <p>
+      A <strong>gateway</strong> signs your prompt and sends it through a <strong>passive tap</strong>
+      to the <strong>language model</strong>. The tap simultaneously copies the prompt and the
+      response to a <strong>verifier</strong>, which re-runs the same inference and compares the output.
+      Same prompt &middot; same seed &middot; deterministic config &rArr; bit-identical tokens.
+      If they differ, the verifier raises an alarm.
+    </p>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      Model: Qwen3-1.7B on a single H100. Determinism: <code style="font-family: var(--mono); font-size: 0.78rem;">enforce_eager</code>,
+      <code style="font-family: var(--mono); font-size: 0.78rem;">FLASH_ATTN</code>, batch invariance,
+      <code style="font-family: var(--mono); font-size: 0.78rem;">seed=42</code>, <code style="font-family: var(--mono); font-size: 0.78rem;">temperature=0</code>.
+    </p>
+  </section>
+
+  <footer>
+    Source: <a href="https://github.com/compute-verification/verification-tooling/tree/main/demos/tap-protocol">github.com/compute-verification/verification-tooling</a>
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const tbody = $("runs-body");
+const submitBtn = $("submit"), promptInput = $("prompt"), maxTokens = $("max-tokens"), statusEl = $("status");
+
+// Track requests by gateway id (filled in by the events stream) AND by a
+// local "pending" placeholder while we wait for the first event.
+const rows = new Map();          // id -> { tr, model, summary state }
+let pending = null;              // { tempKey, prompt, ... } before id is known
+
+function setStatus(state, label) {
+  statusEl.className = "status " + state;
+  statusEl.textContent = label;
+}
+
+function escapeHtml(s) {
+  return (s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]);
+}
+
+function shortHex(s) {
+  return s ? s.replace(/^sha256:/, "").slice(0, 10) : "—";
+}
+
+function fmtTime(ts) {
+  const d = ts ? new Date(ts * 1000) : new Date();
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
+function summarize(s, n = 180) {
+  if (!s) return "";
+  // collapse newlines for table view; full text shown on hover
+  const flat = s.replace(/\s+/g, " ").trim();
+  return flat.length > n ? flat.slice(0, n - 1) + "…" : flat;
+}
+
+// ---------------------------------------------------------------------
+// Topology animation: nodes + flying packets matching the protocol events.
+const TOPO_PACKETS = document.getElementById("topo-packets");
+const NS = "http://www.w3.org/2000/svg";
+
+// Geometry — matches the SVG layout (node centers + edge midpoints).
+const TOPO = {
+  you:     { x:  80, y:  68 },
+  gateway: { x: 240, y:  68 },
+  tap:     { x: 400, y:  68 },
+  host:    { x: 580, y:  38 },
+  recomp:  { x: 580, y: 108 },
+};
+const EDGE_OF = {
+  "you-gateway":     "edge-you-gateway",
+  "gateway-tap":     "edge-gateway-tap",
+  "tap-host":        "edge-tap-host",
+  "host-tap":        "edge-host-tap",
+  "tap-gateway":     "edge-tap-gateway",
+  "gateway-you":     "edge-gateway-you",
+  "tap-recomp":      "edge-tap-recomp",
+};
+const TOPO_NODES = ["you", "gateway", "tap", "host", "recomp"];
+
+function flashNode(name, mode = "active", durationMs = 700) {
+  const g = document.getElementById("topo-" + name);
+  if (!g) return;
+  const rect = g.querySelector(".topo-node");
+  rect.classList.add(mode);
+  setTimeout(() => rect.classList.remove(mode), durationMs);
+}
+
+function flashEdge(edgeKey, durationMs = 700) {
+  const el = document.getElementById(EDGE_OF[edgeKey]);
+  if (!el) return;
+  el.classList.add("active");
+  setTimeout(() => el.classList.remove("active"), durationMs);
+}
+
+function flyPacket(from, to, opts = {}) {
+  const a = TOPO[from], b = TOPO[to];
+  if (!a || !b) return;
+  const c = document.createElementNS(NS, "circle");
+  c.setAttribute("class", "topo-packet" + (opts.kind ? " " + opts.kind : ""));
+  c.setAttribute("cx", a.x); c.setAttribute("cy", a.y);
+  c.setAttribute("r", opts.r ?? (opts.kind === "bad" ? 5.5 : 4.5));
+  TOPO_PACKETS.appendChild(c);
+  const dur = opts.dur ?? 650;
+  c.animate(
+    [{ cx: a.x, cy: a.y }, { cx: b.x, cy: b.y }],
+    { duration: dur, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" }
+  ).addEventListener("finish", () => c.remove());
+  flashEdge(from + "-" + to, dur);
+  flashNode(from, "active", dur);
+  setTimeout(() => flashNode(to, opts.kind ?? "active", 600), dur * 0.8);
+}
+
+// Build an empty row, prepend it, return the model object
+function newRow({ id = null, prompt = "", ts = Date.now() / 1000 } = {}) {
+  // Remove the empty-state row if present
+  if (tbody.children.length === 1 && tbody.children[0].cells.length === 1) tbody.innerHTML = "";
+
+  const tr = document.createElement("tr");
+  tr.className = "current";
+  const dtr = document.createElement("tr");
+  dtr.className = "digest-row";
+  dtr.style.display = "none";
+
+  const m = {
+    id, prompt, ts,
+    answer: "", hostDigest: "", recompDigest: "",
+    verdict: "pending",
+    stages: { signed: false, sent_to_host: false, host_done: false, returned: false, verified: false },
+    tr, dtr,
+  };
+
+  // initial cells
+  tr.innerHTML = `
+    <td class="t-time">${fmtTime(ts)}</td>
+    <td class="t-prompt"></td>
+    <td class="t-answer"><span class="placeholder">…</span></td>
+    <td><span class="strip pending"><span></span><span></span><span></span><span></span></span></td>
+    <td class="t-verdict verdict-warm">waiting</td>`;
+  tr.cells[1].textContent = prompt;
+  // digest row
+  dtr.innerHTML = `<td></td><td colspan="4"><span class="pair"></span></td>`;
+
+  tbody.insertBefore(dtr, tbody.firstChild);
+  tbody.insertBefore(tr, tbody.firstChild);
+  // de-emphasize the previous current row (if any)
+  for (const old of tbody.querySelectorAll("tr.current")) if (old !== tr) old.classList.remove("current");
+  return m;
+}
+
+function setStage(m, stageKey) {
+  m.stages[stageKey] = true;
+  // Map 5 internal stages to 4 visual segments:
+  //   seg 1 = signed
+  //   seg 2 = sent_to_host
+  //   seg 3 = host_done & returned
+  //   seg 4 = verified
+  const strip = m.tr.querySelector(".strip");
+  const segs = strip.querySelectorAll("span");
+  const fillStrip = () => {
+    segs[0].classList.toggle("done", m.stages.signed);
+    segs[1].classList.toggle("done", m.stages.sent_to_host);
+    segs[2].classList.toggle("done", m.stages.host_done && m.stages.returned);
+    segs[3].classList.toggle("done", m.stages.verified);
+  };
+  fillStrip();
+}
+
+function renderDigest(m) {
+  if (!m.hostDigest && !m.recompDigest) return;
+  m.dtr.style.display = "";
+  const pair = m.dtr.querySelector(".pair");
+  pair.innerHTML = "";
+  if (m.hostDigest) {
+    const a = document.createElement("span");
+    a.textContent = "host:  sha256 " + shortHex(m.hostDigest);
+    pair.appendChild(a);
+  }
+  if (m.recompDigest) {
+    const b = document.createElement("span");
+    if (m.verdict === "bad") {
+      b.className = "verifier-bad";
+      b.textContent = "verifier:  sha256 " + shortHex(m.recompDigest) + "  ◀ differs";
+    } else if (m.verdict === "ok") {
+      b.className = "verifier-ok";
+      b.textContent = "verifier:  same";
+    } else {
+      b.textContent = "verifier:  sha256 " + shortHex(m.recompDigest);
+    }
+    pair.appendChild(b);
+  }
+}
+
+function setVerdict(m, verdict) {
+  m.verdict = verdict;
+  const strip = m.tr.querySelector(".strip");
+  strip.classList.remove("pending", "ok", "bad");
+  const verdictCell = m.tr.cells[4];
+  if (verdict === "ok") {
+    strip.classList.add("ok");
+    verdictCell.className = "t-verdict verdict-ok";
+    verdictCell.textContent = "verified";
+    m.tr.classList.remove("current", "alarm");
+  } else if (verdict === "bad") {
+    strip.classList.add("bad");
+    verdictCell.className = "t-verdict verdict-bad";
+    verdictCell.textContent = "alarm — mismatch";
+    m.tr.classList.remove("current");
+    m.tr.classList.add("alarm");
+  } else {
+    verdictCell.className = "t-verdict verdict-warm";
+    verdictCell.textContent = "waiting";
+  }
+  renderDigest(m);
+}
+
+function setAnswer(m, text) {
+  m.answer = text;
+  const cell = m.tr.cells[2];
+  if (text) {
+    cell.textContent = summarize(text, 160);
+    cell.title = text;  // full text on hover
+  }
+}
+
+// ---------------------------------------------------------------------
+// Live event stream → table state machine
+function startEvents() {
+  setStatus("warm", "connecting");
+  const src = new EventSource("/api/events");
+  src.onopen = () => setStatus("on", "live");
+  src.onerror = () => setStatus("warm", "reconnecting");
+  src.onmessage = (msg) => {
+    let evt;
+    try {
+      evt = JSON.parse(msg.data);
+    } catch (e) {
+      // Defense-in-depth: a silent return here once hid a real proxy bug
+      // (heartbeat interleaving inside a data line). Make future parse
+      // failures loud so they show up in the validator.
+      console.warn("SSE parse error", e.message, "raw:", msg.data?.slice?.(0, 200));
+      return;
+    }
+
+    if (evt.type === "offline") {
+      setStatus("bad", evt.reason || "offline");
+      return;
+    }
+
+    // Skip animating events from the SSE backlog so a fresh page-load
+    // doesn't trigger 80 packets at once. The Tap timestamps are wall-clock
+    // seconds; anything older than ~6s is replay.
+    const isReplay = evt.ts && (Date.now() / 1000 - evt.ts) > 6;
+
+    let m = rows.get(evt.id);
+    switch (evt.type) {
+      case "request_sent":
+        if (pending && pending.prompt === evt.prompt) {
+          m = pending;
+          m.id = evt.id;
+          m.ts = evt.ts;
+          m.tr.cells[0].textContent = fmtTime(evt.ts);
+          pending = null;
+        }
+        if (!m) {
+          m = newRow({ id: evt.id, prompt: evt.prompt, ts: evt.ts });
+        }
+        rows.set(evt.id, m);
+        if (!isReplay) flyPacket("you", "gateway");
+        break;
+      case "gateway_signed":
+        if (m) setStage(m, "signed");
+        if (!isReplay) flashNode("gateway", "active", 500);
+        break;
+      case "tap_received":
+        if (!isReplay) flyPacket("gateway", "tap");
+        break;
+      case "tap_relayed_request":
+        if (m) setStage(m, "sent_to_host");
+        if (!isReplay) flyPacket("tap", "host", { dur: 800 });
+        break;
+      case "host_completed":
+        if (m) {
+          m.hostDigest = evt.output_sha256 || m.hostDigest;
+          if (evt.output_preview) setAnswer(m, evt.output_preview);
+          setStage(m, "host_done");
+        }
+        if (!isReplay) flashNode("host", "active", 1100);
+        break;
+      case "tap_relayed_response":
+        if (!isReplay) flyPacket("host", "tap", { dur: 700 });
+        break;
+      case "client_received":
+        if (m) {
+          if (evt.output_preview) setAnswer(m, evt.output_preview);
+          setStage(m, "returned");
+        }
+        if (!isReplay) {
+          flyPacket("tap", "gateway");
+          setTimeout(() => flyPacket("gateway", "you"), 650);
+        }
+        break;
+      case "tap_verify_started":
+        if (!isReplay) flyPacket("tap", "recomp", { dur: 900 });
+        break;
+      case "recomp_verified":
+        if (m) {
+          m.recompDigest = evt.actual_sha256 || m.recompDigest;
+          setStage(m, "verified");
+          setVerdict(m, evt.is_verified ? "ok" : "bad");
+        }
+        if (!isReplay) flashNode("recomp", evt.is_verified ? "ok" : "bad", 1500);
+        break;
+    }
+  };
+  return src;
+}
+
+// ---------------------------------------------------------------------
+// Submit
+async function submit() {
+  const text = promptInput.value.trim();
+  if (!text) { promptInput.focus(); return; }
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Sending…";
+  promptInput.disabled = true;
+
+  // local placeholder until the events stream claims it by prompt match
+  pending = newRow({ prompt: text });
+
+  try {
+    const r = await fetch("/api/inference", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: text, max_tokens: Number(maxTokens.value) || 128 }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+    // If the events stream hasn't taken over yet, paint the answer ourselves.
+    if (pending && !pending.answer) {
+      setAnswer(pending, data.output);
+    }
+  } catch (e) {
+    if (pending) {
+      pending.tr.cells[4].className = "t-verdict verdict-bad";
+      pending.tr.cells[4].textContent = "cluster unreachable";
+      pending.tr.cells[4].title = e.message;
+      pending = null;
+    }
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Send";
+    promptInput.disabled = false;
+    promptInput.value = "";
+    promptInput.focus();
+  }
+}
+submitBtn.addEventListener("click", submit);
+promptInput.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit();
+});
+
+startEvents();
+</script>
+</body>
+</html>
