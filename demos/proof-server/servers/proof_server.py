@@ -1,0 +1,356 @@
+"""Proof server — the developer-controlled proxy between the datacenter
+(``demos/tap-protocol``'s Tap) and the auditor.
+
+The Tap forwards every verified ``(request_env, response_env)`` pair here.
+The proof server appends both envelopes' ``EnvelopeData`` to its append-only
+ledger. On ``POST /commit`` it (a) builds a Merkle root over the current
+ledger, (b) signs the root with its own Ed25519 keypair, (c) shells out to
+``proof-server-host`` to generate either an SP1 execute trace (``--quick``)
+or a full Plonk proof.
+
+The auditor never talks to the Tap, the gateways, or anything else inside
+the datacenter -- it only reads from this server:
+
+  GET /ledger          → the published ``EnvelopeData`` rows
+  GET /signer_pubkeys  → the Ed25519 pubkey set the auditor needs out-of-band
+  GET /public_outputs  → the SP1 program's committed public outputs
+  GET /proof.bin       → the proof bytes (only in --prove mode)
+
+The auditor supplies its nonce as ``?nonce=<hex>`` on ``POST /commit``.
+v0 is single-tenant: one ledger, one commit-cycle, one auditor.
+
+Threat model.
+    The raw Ed25519 signature over the Merkle root stays inside this
+    process. The SP1 program is the only thing that ever sees it, and the
+    program's public outputs do not include it. The auditor sees only the
+    public outputs (auditor_nonce, ledger_digest, pubkey_set_digest, counts).
+    This is the doc's subliminal-channel defense, concrete: even if the
+    proof server is compromised, exfiltrating bits via the signature
+    requires breaking the SP1 zero-knowledge property.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import signal
+import subprocess
+import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from socketserver import ThreadingMixIn
+from urllib.parse import urlparse, parse_qs
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from modules.core.common.deterministic import canonical_json_bytes  # noqa: E402
+from modules.proof_server.api import (  # noqa: E402
+    assemble_witness,
+    build_merkle_tree,
+    keypair_from_seed,
+    leaf_hash,
+    pubkey_hex,
+    sign_root,
+)
+
+
+# Fixed seed so the demo is reproducible. Real deployments would generate
+# the keypair once at provisioning time and hold it in attestable hardware.
+DEMO_SEED = b"proof-server-demo-seed----------"
+assert len(DEMO_SEED) == 32
+
+
+class _Ledger:
+    """Thread-safe append-only ledger of EnvelopeData rows (the published
+    scrubbed projection the auditor will see).
+
+    Dedup is keyed by the canonical-JSON leaf hash, NOT by any in-row id
+    field — a tap-protocol request and its response share the same Gateway-
+    assigned ``id`` but are distinct rows that must both appear in the
+    ledger.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._rows: list[dict] = []
+        # Map leaf-hash (hex) -> leaf index. Used by assemble_witness later.
+        self._leaf_index_of: dict[str, int] = {}
+
+    def append(self, env_data: dict) -> None:
+        with self._lock:
+            key = leaf_hash(env_data).hex()
+            if key in self._leaf_index_of:
+                # Idempotent: the Tap may resend the same envelope on retry.
+                return
+            self._leaf_index_of[key] = len(self._rows)
+            self._rows.append(env_data)
+
+    def snapshot(self) -> tuple[list[dict], dict[str, int]]:
+        with self._lock:
+            return list(self._rows), dict(self._leaf_index_of)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._rows)
+
+
+class _PublicState:
+    """Last commit's public outputs + an optional proof binary path.
+
+    The auditor polls ``GET /public_outputs`` and (in --prove mode)
+    ``GET /proof.bin`` to read these.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.public_outputs: dict | None = None
+        self.proof_path: Path | None = None
+        self.ledger_snapshot: list[dict] | None = None
+
+    def set(self, *, public_outputs: dict, proof_path: Path | None,
+            ledger_snapshot: list[dict]) -> None:
+        with self._lock:
+            self.public_outputs = public_outputs
+            self.proof_path = proof_path
+            self.ledger_snapshot = ledger_snapshot
+
+
+class ProofServerHandler(BaseHTTPRequestHandler):
+    """The proxy's HTTP surface. Class-level attributes are mutated by ``main``."""
+
+    ledger: _Ledger = None  # type: ignore[assignment]
+    public_state: _PublicState = None  # type: ignore[assignment]
+    sk = None
+    pk = None
+    pk_hex: str = ""
+    host_bin: Path = None  # type: ignore[assignment]
+    work_dir: Path = None  # type: ignore[assignment]
+
+    def _send_json(self, code: int, body) -> None:
+        payload = json.dumps(body).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _send_bytes(self, code: int, ctype: str, payload: bytes) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    # ----------------------------------------------------------------------
+    # GET surface (the auditor's read-only window into the proof server)
+    # ----------------------------------------------------------------------
+
+    def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/health":
+            return self._send_json(200, {"status": "ok", "rows": len(self.ledger)})
+        if path == "/ledger":
+            rows, _ = self.ledger.snapshot()
+            return self._send_bytes(200, "application/json",
+                                    canonical_json_bytes(rows))
+        if path == "/signer_pubkeys":
+            return self._send_bytes(200, "application/json",
+                                    canonical_json_bytes([self.pk_hex]))
+        if path == "/public_outputs":
+            po = self.public_state.public_outputs
+            if po is None:
+                return self._send_json(409, {"error": "no commit has run yet"})
+            return self._send_json(200, po)
+        if path == "/proof.bin":
+            pp = self.public_state.proof_path
+            if pp is None or not pp.exists():
+                return self._send_json(404, {"error": "no proof; --prove not run"})
+            return self._send_bytes(200, "application/octet-stream", pp.read_bytes())
+        return self._send_json(404, {"error": f"not found: {path}"})
+
+    # ----------------------------------------------------------------------
+    # POST surface (what the Tap and the auditor write to)
+    # ----------------------------------------------------------------------
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length else b""
+        except Exception as exc:  # noqa: BLE001
+            return self._send_json(400, {"error": f"bad body: {exc}"})
+
+        if path == "/tap-copy":
+            return self._handle_tap_copy(raw)
+        if path == "/commit":
+            return self._handle_commit(parsed.query)
+        return self._send_json(404, {"error": f"not found: {path}"})
+
+    def _handle_tap_copy(self, raw: bytes) -> None:
+        try:
+            body = json.loads(raw or b"{}")
+            req_env = body["request_data"]
+            resp_env = body["response_data"]
+        except Exception as exc:  # noqa: BLE001
+            return self._send_json(400, {"error": f"bad tap-copy: {exc}"})
+
+        # The Tap has already HMAC-verified the envelopes. The proof server
+        # publishes the EnvelopeData payloads (not the HMAC signatures) -- the
+        # auditor sees only what the proof server chooses to publish.
+        try:
+            self.ledger.append(req_env["data"])
+            self.ledger.append(resp_env["data"])
+        except Exception as exc:  # noqa: BLE001
+            return self._send_json(400, {"error": f"could not record: {exc}"})
+
+        return self._send_json(200, {"status": "ok", "rows": len(self.ledger)})
+
+    def _handle_commit(self, query: str) -> None:
+        params = parse_qs(query)
+        nonce_hex = (params.get("nonce") or [""])[0]
+        if len(nonce_hex) != 64:
+            return self._send_json(400, {"error": "missing or malformed nonce= (need 64 hex chars)"})
+        mode = (params.get("mode") or ["execute"])[0]
+        if mode not in {"execute", "prove"}:
+            return self._send_json(400, {"error": f"bad mode {mode!r}; must be execute or prove"})
+
+        rows, leaf_index_of = self.ledger.snapshot()
+        if not rows:
+            return self._send_json(409, {"error": "ledger is empty -- nothing to commit"})
+
+        try:
+            leaves = [leaf_hash(r) for r in rows]
+            tree = build_merkle_tree(leaves)
+            signature = sign_root(self.sk, tree.root)
+
+            witnesses = assemble_witness(
+                rows, [self.pk_hex],
+                tree=tree,
+                leaf_index_of=leaf_index_of,
+                signed_root=tree.root,
+                signature=signature,
+                signer_pubkey_hex=self.pk_hex,
+            )
+            stdin_json = {
+                "auditor_nonce": nonce_hex,
+                "signer_pubkeys": [self.pk_hex],
+                "ledger_rows_canon_hex": [
+                    w.row_canonical_json.rstrip(b"\n").hex() for w in witnesses
+                ],
+                "witnesses": [
+                    {
+                        "signer_idx": w.signer_idx,
+                        "leaf_index": w.leaf_index,
+                        "merkle_path_hex": [s.hex() for s in w.merkle_path],
+                        "signed_root": w.signed_root.hex(),
+                        "signature": w.signature.hex(),
+                    }
+                    for w in witnesses
+                ],
+            }
+        except Exception as exc:  # noqa: BLE001
+            return self._send_json(500, {"error": f"witness assembly failed: {exc}"})
+
+        if not self.host_bin.exists():
+            return self._send_json(500, {
+                "error": f"SP1 host binary not found at {self.host_bin}; "
+                         f"build it with PROTOC=... cargo build --release --manifest-path "
+                         f"modules/proof_server/sp1/host/Cargo.toml"
+            })
+
+        proof_out = (self.work_dir / "proof.bin") if mode == "prove" else None
+        args = [str(self.host_bin)]
+        if mode == "execute":
+            args.append("--execute")
+        else:
+            args.extend(["--prove", "--proof", str(proof_out)])
+
+        completed = subprocess.run(
+            args,
+            input=json.dumps(stdin_json).encode("utf-8"),
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            err = completed.stderr.decode("utf-8", errors="replace")
+            return self._send_json(500, {
+                "error": f"SP1 host exited {completed.returncode}",
+                "stderr_tail": err.splitlines()[-10:],
+            })
+
+        try:
+            stdout = completed.stdout.decode("utf-8", errors="replace").strip()
+            public = json.loads(stdout.splitlines()[-1])
+        except Exception as exc:  # noqa: BLE001
+            return self._send_json(500, {"error": f"unparseable SP1 output: {exc}"})
+
+        self.public_state.set(
+            public_outputs=public,
+            proof_path=proof_out if proof_out and proof_out.exists() else None,
+            ledger_snapshot=rows,
+        )
+        return self._send_json(200, {
+            "status": "ok",
+            "mode": mode,
+            "n_rows": public.get("n_rows"),
+            "ledger_digest": public.get("ledger_digest"),
+        })
+
+    def log_message(self, format, *args):  # noqa: A002
+        sys.stderr.write("[proof-server] " + (format % args) + "\n")
+
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=8040)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host-bin", type=Path,
+                        default=REPO_ROOT / "modules/proof_server/sp1/target/release/proof-server-host",
+                        help="Path to the compiled proof-server-host binary")
+    parser.add_argument("--work-dir", type=Path, default=Path("/tmp/proof-server-state"),
+                        help="Where to write the proof.bin in --prove mode")
+    args = parser.parse_args()
+
+    args.work_dir.mkdir(parents=True, exist_ok=True)
+
+    sk, pk = keypair_from_seed(DEMO_SEED)
+    ProofServerHandler.sk = sk
+    ProofServerHandler.pk = pk
+    ProofServerHandler.pk_hex = pubkey_hex(pk)
+    ProofServerHandler.ledger = _Ledger()
+    ProofServerHandler.public_state = _PublicState()
+    ProofServerHandler.host_bin = args.host_bin
+    ProofServerHandler.work_dir = args.work_dir
+
+    server = ThreadedHTTPServer((args.host, args.port), ProofServerHandler)
+
+    def _shutdown(signum, frame):  # noqa: ARG001
+        sys.stderr.write("[proof-server] shutting down\n")
+        threading.Thread(target=server.shutdown, daemon=True).start()
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
+
+    print(f"[proof-server] listening on {args.host}:{args.port}; pubkey={ProofServerHandler.pk_hex[:16]}...; "
+          f"host_bin={args.host_bin}")
+    sys.stdout.flush()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
