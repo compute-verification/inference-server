@@ -82,9 +82,11 @@
 <body>
 <h1>tap-protocol — protocol viewer</h1>
 <div class="sub">
-  Animates the 4-server inference verification flow. Decoupled from the demo:
-  feed it any JSON event stream matching the schema below, or use the embedded
-  samples. Press <code>?</code> to toggle this hint.
+  Animates the 4-server inference verification flow.
+  Default sample is a real <strong>9-request capture from a Qwen3-1.7B run on H100</strong>
+  (vast.ai instance 39076914); also ships synthetic samples covering the alarm path.
+  Schema is documented below; the viewer can also connect live to a running Tap via
+  <code>?mode=live&amp;url=…</code>.
 </div>
 
 <div class="toolbar">
@@ -102,9 +104,10 @@
   </label>
   <label>Sample
     <select id="sample">
-      <option value="happy">3 happy requests</option>
-      <option value="mixed">3 happy + 1 alarm</option>
-      <option value="alarm-only">1 alarm</option>
+      <option value="captured">live H100 capture (real Qwen3-1.7B)</option>
+      <option value="mixed">3 happy + 1 alarm (synthetic)</option>
+      <option value="happy">3 happy requests (synthetic)</option>
+      <option value="alarm-only">1 alarm (synthetic)</option>
     </select>
   </label>
   <label>Or load file
@@ -567,8 +570,6 @@ function startLive(url) {
 // ---------------------------------------------------------------------
 btnPlay.addEventListener("click", () => state.playing ? stop() : play());
 btnStep.addEventListener("click", () => { stop(); step(); });
-btnReset.addEventListener("click", () => { stop(); loadEvents(SAMPLES[selSample.value]); });
-selSample.addEventListener("change", () => { stop(); loadEvents(SAMPLES[selSample.value]); });
 inFile.addEventListener("change", async () => {
   if (!inFile.files[0]) return;
   const text = await inFile.files[0].text();
@@ -579,13 +580,33 @@ inFile.addEventListener("change", async () => {
   } catch (e) { alert("Invalid JSON: " + e.message); }
 });
 
+// Load a sample by name; "captured" is fetched async, others are inline.
+async function selectSample(name) {
+  stop();
+  if (name === "captured") {
+    try {
+      const r = await fetch("captured-events.json");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      loadEvents(data);
+    } catch (e) {
+      console.warn("captured-events.json not available; falling back to synthetic", e);
+      loadEvents(SAMPLES.mixed);
+      selSample.value = "mixed";
+    }
+  } else {
+    loadEvents(SAMPLES[name]);
+  }
+}
+selSample.addEventListener("change", () => selectSample(selSample.value));
+btnReset.addEventListener("click", () => selectSample(selSample.value));
+
 // init
 const params = new URLSearchParams(location.search);
 if (params.get("mode") === "live" && params.get("url")) {
   startLive(params.get("url"));
 } else {
-  loadEvents(SAMPLES.mixed);
-  selSample.value = "mixed";
+  selectSample("captured");
 }
 </script>
 </body>

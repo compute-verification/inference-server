@@ -1,0 +1,488 @@
+[
+ {
+  "ts": 0.0,
+  "type": "request_sent",
+  "id": 1,
+  "prompt": "The capital of France is"
+ },
+ {
+  "ts": 0.0,
+  "type": "gateway_signed",
+  "id": 1,
+  "signature_prefix": "82c2e05a296d"
+ },
+ {
+  "ts": 0.0,
+  "type": "tap_received",
+  "id": 1
+ },
+ {
+  "ts": 0.0,
+  "type": "tap_relayed_request",
+  "id": 1
+ },
+ {
+  "ts": 0.455,
+  "type": "host_completed",
+  "id": 1,
+  "output_preview": "<think>\nOkay, the user is asking for the capital of France. I need to make sure I get this right.",
+  "output_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1"
+ },
+ {
+  "ts": 0.455,
+  "type": "tap_relayed_response",
+  "id": 1
+ },
+ {
+  "ts": 0.455,
+  "type": "client_received",
+  "id": 1,
+  "output_preview": "<think>\nOkay, the user is asking for the capital of France. I need to make sure I get this right."
+ },
+ {
+  "ts": 0.455,
+  "type": "tap_verify_started",
+  "id": 1
+ },
+ {
+  "ts": 0.886,
+  "type": "recomp_verified",
+  "id": 1,
+  "is_verified": true,
+  "expected_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1",
+  "actual_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1",
+  "reason": null
+ },
+ {
+  "ts": 0.997,
+  "type": "request_sent",
+  "id": 2,
+  "prompt": "Write one line of Python that prints Hello world"
+ },
+ {
+  "ts": 0.997,
+  "type": "gateway_signed",
+  "id": 2,
+  "signature_prefix": "8c514a716f9d"
+ },
+ {
+  "ts": 0.997,
+  "type": "tap_received",
+  "id": 2
+ },
+ {
+  "ts": 0.997,
+  "type": "tap_relayed_request",
+  "id": 2
+ },
+ {
+  "ts": 1.44,
+  "type": "host_completed",
+  "id": 2,
+  "output_preview": "<think>\nOkay, the user wants me to write a single line of Python that prints \"Hello world\". Let me think",
+  "output_sha256": "sha256:51f4828c7b74d526e6885423d18453a62a63ab98ca04243147cf29b115308e4e"
+ },
+ {
+  "ts": 1.44,
+  "type": "tap_relayed_response",
+  "id": 2
+ },
+ {
+  "ts": 1.44,
+  "type": "client_received",
+  "id": 2,
+  "output_preview": "<think>\nOkay, the user wants me to write a single line of Python that prints \"Hello world\". Let me think"
+ },
+ {
+  "ts": 1.44,
+  "type": "tap_verify_started",
+  "id": 2
+ },
+ {
+  "ts": 1.863,
+  "type": "recomp_verified",
+  "id": 2,
+  "is_verified": true,
+  "expected_sha256": "sha256:51f4828c7b74d526e6885423d18453a62a63ab98ca04243147cf29b115308e4e",
+  "actual_sha256": "sha256:51f4828c7b74d526e6885423d18453a62a63ab98ca04243147cf29b115308e4e",
+  "reason": null
+ },
+ {
+  "ts": 1.988,
+  "type": "request_sent",
+  "id": 3,
+  "prompt": "What is 12 times 12?"
+ },
+ {
+  "ts": 1.988,
+  "type": "gateway_signed",
+  "id": 3,
+  "signature_prefix": "0894e0df3a3e"
+ },
+ {
+  "ts": 1.988,
+  "type": "tap_received",
+  "id": 3
+ },
+ {
+  "ts": 1.988,
+  "type": "tap_relayed_request",
+  "id": 3
+ },
+ {
+  "ts": 2.405,
+  "type": "host_completed",
+  "id": 3,
+  "output_preview": "<think>\nOkay, let's see. The user is asking for 12 times 12. Hmm, that",
+  "output_sha256": "sha256:9dd059d2bb330c1ed3ecd3e2380b8cfaedf00ab9069cd34aa8164b71ec040225"
+ },
+ {
+  "ts": 2.405,
+  "type": "tap_relayed_response",
+  "id": 3
+ },
+ {
+  "ts": 2.405,
+  "type": "client_received",
+  "id": 3,
+  "output_preview": "<think>\nOkay, let's see. The user is asking for 12 times 12. Hmm, that"
+ },
+ {
+  "ts": 2.405,
+  "type": "tap_verify_started",
+  "id": 3
+ },
+ {
+  "ts": 2.875,
+  "type": "recomp_verified",
+  "id": 3,
+  "is_verified": true,
+  "expected_sha256": "sha256:9dd059d2bb330c1ed3ecd3e2380b8cfaedf00ab9069cd34aa8164b71ec040225",
+  "actual_sha256": "sha256:9dd059d2bb330c1ed3ecd3e2380b8cfaedf00ab9069cd34aa8164b71ec040225",
+  "reason": null
+ },
+ {
+  "ts": 2.953,
+  "type": "request_sent",
+  "id": 4,
+  "prompt": "Name a primary color"
+ },
+ {
+  "ts": 2.953,
+  "type": "gateway_signed",
+  "id": 4,
+  "signature_prefix": "518ed9372af4"
+ },
+ {
+  "ts": 2.953,
+  "type": "tap_received",
+  "id": 4
+ },
+ {
+  "ts": 2.953,
+  "type": "tap_relayed_request",
+  "id": 4
+ },
+ {
+  "ts": 3.394,
+  "type": "host_completed",
+  "id": 4,
+  "output_preview": "<think>\nOkay, the user is asking for a primary color. Let me think. Primary colors are the basic colors in",
+  "output_sha256": "sha256:2f0f6c20d8714267b1bd4ab0ffd686d97a68f3a52736616007ea142815d52c72"
+ },
+ {
+  "ts": 3.394,
+  "type": "tap_relayed_response",
+  "id": 4
+ },
+ {
+  "ts": 3.394,
+  "type": "client_received",
+  "id": 4,
+  "output_preview": "<think>\nOkay, the user is asking for a primary color. Let me think. Primary colors are the basic colors in"
+ },
+ {
+  "ts": 3.394,
+  "type": "tap_verify_started",
+  "id": 4
+ },
+ {
+  "ts": 3.832,
+  "type": "recomp_verified",
+  "id": 4,
+  "is_verified": true,
+  "expected_sha256": "sha256:2f0f6c20d8714267b1bd4ab0ffd686d97a68f3a52736616007ea142815d52c72",
+  "actual_sha256": "sha256:2f0f6c20d8714267b1bd4ab0ffd686d97a68f3a52736616007ea142815d52c72",
+  "reason": null
+ },
+ {
+  "ts": 17.763,
+  "type": "request_sent",
+  "id": 5,
+  "prompt": "The capital of France is"
+ },
+ {
+  "ts": 17.763,
+  "type": "gateway_signed",
+  "id": 5,
+  "signature_prefix": "d7507c67f53f"
+ },
+ {
+  "ts": 17.763,
+  "type": "tap_received",
+  "id": 5
+ },
+ {
+  "ts": 17.763,
+  "type": "tap_relayed_request",
+  "id": 5
+ },
+ {
+  "ts": 18.178,
+  "type": "host_completed",
+  "id": 5,
+  "output_preview": "<think>\nOkay, the user is asking for the capital of France. I need to make sure I get this right.",
+  "output_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1"
+ },
+ {
+  "ts": 18.178,
+  "type": "tap_relayed_response",
+  "id": 5
+ },
+ {
+  "ts": 18.178,
+  "type": "client_received",
+  "id": 5,
+  "output_preview": "<think>\nOkay, the user is asking for the capital of France. I need to make sure I get this right."
+ },
+ {
+  "ts": 18.178,
+  "type": "tap_verify_started",
+  "id": 5
+ },
+ {
+  "ts": 18.618,
+  "type": "recomp_verified",
+  "id": 5,
+  "is_verified": true,
+  "expected_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1",
+  "actual_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1",
+  "reason": null
+ },
+ {
+  "ts": 37.505,
+  "type": "request_sent",
+  "id": 6,
+  "prompt": "The capital of France is"
+ },
+ {
+  "ts": 37.505,
+  "type": "gateway_signed",
+  "id": 6,
+  "signature_prefix": "984ec8bb44d1"
+ },
+ {
+  "ts": 37.505,
+  "type": "tap_received",
+  "id": 6
+ },
+ {
+  "ts": 37.506,
+  "type": "tap_relayed_request",
+  "id": 6
+ },
+ {
+  "ts": 37.929,
+  "type": "host_completed",
+  "id": 6,
+  "output_preview": "<think>\nOkay, the user is asking for the capital of France. I need to make sure I get this right.",
+  "output_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1"
+ },
+ {
+  "ts": 37.929,
+  "type": "tap_relayed_response",
+  "id": 6
+ },
+ {
+  "ts": 37.929,
+  "type": "client_received",
+  "id": 6,
+  "output_preview": "<think>\nOkay, the user is asking for the capital of France. I need to make sure I get this right."
+ },
+ {
+  "ts": 37.929,
+  "type": "tap_verify_started",
+  "id": 6
+ },
+ {
+  "ts": 38.36,
+  "type": "recomp_verified",
+  "id": 6,
+  "is_verified": true,
+  "expected_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1",
+  "actual_sha256": "sha256:e5345a99e820fafae9aba5d2c9225b6d6fda1be4879ea4eff1feaee494a145a1",
+  "reason": null
+ },
+ {
+  "ts": 38.514,
+  "type": "request_sent",
+  "id": 7,
+  "prompt": "Write one line of Python that prints Hello world"
+ },
+ {
+  "ts": 38.514,
+  "type": "gateway_signed",
+  "id": 7,
+  "signature_prefix": "799e0c4534f4"
+ },
+ {
+  "ts": 38.514,
+  "type": "tap_received",
+  "id": 7
+ },
+ {
+  "ts": 38.514,
+  "type": "tap_relayed_request",
+  "id": 7
+ },
+ {
+  "ts": 38.927,
+  "type": "host_completed",
+  "id": 7,
+  "output_preview": "<think>\nOkay, the user wants me to write a single line of Python that prints \"Hello world\". Let me think",
+  "output_sha256": "sha256:51f4828c7b74d526e6885423d18453a62a63ab98ca04243147cf29b115308e4e"
+ },
+ {
+  "ts": 38.927,
+  "type": "tap_relayed_response",
+  "id": 7
+ },
+ {
+  "ts": 38.927,
+  "type": "client_received",
+  "id": 7,
+  "output_preview": "<think>\nOkay, the user wants me to write a single line of Python that prints \"Hello world\". Let me think"
+ },
+ {
+  "ts": 38.927,
+  "type": "tap_verify_started",
+  "id": 7
+ },
+ {
+  "ts": 39.325,
+  "type": "request_sent",
+  "id": 8,
+  "prompt": "What is 12 times 12?"
+ },
+ {
+  "ts": 39.325,
+  "type": "gateway_signed",
+  "id": 8,
+  "signature_prefix": "e621c2b69d6c"
+ },
+ {
+  "ts": 39.325,
+  "type": "tap_received",
+  "id": 8
+ },
+ {
+  "ts": 39.325,
+  "type": "tap_relayed_request",
+  "id": 8
+ },
+ {
+  "ts": 39.357,
+  "type": "recomp_verified",
+  "id": 7,
+  "is_verified": true,
+  "expected_sha256": "sha256:51f4828c7b74d526e6885423d18453a62a63ab98ca04243147cf29b115308e4e",
+  "actual_sha256": "sha256:51f4828c7b74d526e6885423d18453a62a63ab98ca04243147cf29b115308e4e",
+  "reason": null
+ },
+ {
+  "ts": 39.737,
+  "type": "host_completed",
+  "id": 8,
+  "output_preview": "<think>\nOkay, let's see. The user is asking for 12 times 12. Hmm, that",
+  "output_sha256": "sha256:9dd059d2bb330c1ed3ecd3e2380b8cfaedf00ab9069cd34aa8164b71ec040225"
+ },
+ {
+  "ts": 39.737,
+  "type": "tap_relayed_response",
+  "id": 8
+ },
+ {
+  "ts": 39.737,
+  "type": "client_received",
+  "id": 8,
+  "output_preview": "<think>\nOkay, let's see. The user is asking for 12 times 12. Hmm, that"
+ },
+ {
+  "ts": 39.737,
+  "type": "tap_verify_started",
+  "id": 8
+ },
+ {
+  "ts": 40.146,
+  "type": "request_sent",
+  "id": 9,
+  "prompt": "Name a primary color"
+ },
+ {
+  "ts": 40.146,
+  "type": "gateway_signed",
+  "id": 9,
+  "signature_prefix": "fa6f2c7a21f6"
+ },
+ {
+  "ts": 40.146,
+  "type": "tap_received",
+  "id": 9
+ },
+ {
+  "ts": 40.146,
+  "type": "tap_relayed_request",
+  "id": 9
+ },
+ {
+  "ts": 40.168,
+  "type": "recomp_verified",
+  "id": 8,
+  "is_verified": true,
+  "expected_sha256": "sha256:9dd059d2bb330c1ed3ecd3e2380b8cfaedf00ab9069cd34aa8164b71ec040225",
+  "actual_sha256": "sha256:9dd059d2bb330c1ed3ecd3e2380b8cfaedf00ab9069cd34aa8164b71ec040225",
+  "reason": null
+ },
+ {
+  "ts": 40.56,
+  "type": "host_completed",
+  "id": 9,
+  "output_preview": "<think>\nOkay, the user is asking for a primary color. Let me think. Primary colors are the basic colors in",
+  "output_sha256": "sha256:2f0f6c20d8714267b1bd4ab0ffd686d97a68f3a52736616007ea142815d52c72"
+ },
+ {
+  "ts": 40.56,
+  "type": "tap_relayed_response",
+  "id": 9
+ },
+ {
+  "ts": 40.56,
+  "type": "client_received",
+  "id": 9,
+  "output_preview": "<think>\nOkay, the user is asking for a primary color. Let me think. Primary colors are the basic colors in"
+ },
+ {
+  "ts": 40.561,
+  "type": "tap_verify_started",
+  "id": 9
+ },
+ {
+  "ts": 40.98,
+  "type": "recomp_verified",
+  "id": 9,
+  "is_verified": true,
+  "expected_sha256": "sha256:2f0f6c20d8714267b1bd4ab0ffd686d97a68f3a52736616007ea142815d52c72",
+  "actual_sha256": "sha256:2f0f6c20d8714267b1bd4ab0ffd686d97a68f3a52736616007ea142815d52c72",
+  "reason": null
+ }
+]

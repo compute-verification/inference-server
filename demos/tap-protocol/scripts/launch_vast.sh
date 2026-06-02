@@ -86,6 +86,8 @@ until ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 -p "$PORT" root@"$IP"
 done
 
 SSH_OPTS="-o StrictHostKeyChecking=no -i $HOME/.ssh/id_ed25519 -p $PORT"
+# scp uses -P (uppercase) for port; -p means preserve mtimes.
+SCP_OPTS="-o StrictHostKeyChecking=no -i $HOME/.ssh/id_ed25519 -P $PORT"
 
 # ---- 5. CUDA fixups ----
 echo "[launcher] fixing CUDA symlinks..."
@@ -101,7 +103,7 @@ tar -C "$REPO_ROOT" -czf "$BUNDLE" \
     --exclude='.claude' --exclude='.venv' --exclude='.git' \
     --exclude='__pycache__' --exclude='*.pyc' \
     .
-scp $SSH_OPTS "$BUNDLE" "root@$IP:/root/dss.tar.gz"
+scp $SCP_OPTS "$BUNDLE" "root@$IP:/root/dss.tar.gz"
 ssh $SSH_OPTS root@"$IP" 'mkdir -p /root/dss && python3 -m tarfile -e /root/dss.tar.gz /root/dss && rm -f /root/dss.tar.gz && echo "[remote] extracted"'
 
 # ---- 7. Pre-fetch weights ----
