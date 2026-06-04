@@ -214,3 +214,160 @@ def build_task_graph(
         vocab=vocab.table(),
         tasks=tasks,
     )
+
+
+# ===========================================================================
+# Training task graph (LoRA fine-tune): a branching DAG, not a chain.
+# ===========================================================================
+#
+# A training run is a *spine* of optimizer steps (forward + backward + update),
+# chained because each step consumes the previous step's weights. Evaluation
+# while training forks that spine: every ``eval_steps`` an eval task branches
+# off the current checkpoint's weights, runs the adapter forward over a held-out
+# set, and emits a metric -- but it does NOT feed back into the spine. So eval
+# tasks are read-only leaves hanging off the chain, which is what turns the
+# training graph into a genuine DAG.
+#
+# Two analogies to the inference graph make the nesting concrete:
+#   * The per-step "emitted token" becomes the **checkpoint digest** (the weight
+#     state on the edge). We only materialize/digest weights at eval points, so
+#     ``checkpoint_digest`` is populated on the train steps that an eval forks off.
+#   * An eval task **is** an inference forward pass over the eval set, so it
+#     expands into the inference task graph built by ``build_task_graph`` above
+#     (stored on the node as ``eval_graph``).
+
+
+def train_step_flops(dims: ModelDims, batch_size: int, seq_len: int) -> int:
+    """FLOPs for one optimizer step over a ``batch_size`` x ``seq_len`` batch.
+
+    Training is ~3x a forward pass (forward + ~2x backward -- the "6*n_params per
+    token" rule), so we reuse ``forward_flops`` over the batch and triple it.
+    """
+    fwd = forward_flops(dims, tokens_in_pass=batch_size * seq_len, context_len=seq_len)
+    return 3 * fwd
+
+
+@dataclass
+class EvalPoint:
+    """One evaluation taken mid-training, forking off the spine.
+
+    ``step`` is the number of completed training steps when the eval ran (1-based;
+    it forks off spine node index ``step - 1``). ``sample_prompt``/``sample_output``
+    are one representative eval example used to expand this eval into a nested
+    inference graph; leave them empty to record the eval node without nesting.
+    """
+    step: int
+    metric: float
+    checkpoint_digest: str
+    sample_prompt: str = ""
+    sample_output: str = ""
+
+
+@dataclass
+class TrainNode:
+    id: int                              # unique across train + eval nodes
+    kind: str                            # "train_step" | "eval"
+    flops: int
+    step: int                            # training step index this node sits at
+    next: Optional[int]                  # spine successor (train_step only)
+    branches: list[int] = field(default_factory=list)  # eval node ids forked here
+    # train_step-only:
+    loss: Optional[float] = None
+    checkpoint_digest: Optional[str] = None  # weights emitted on the edge (eval steps)
+    # eval-only:
+    eval_metric: Optional[float] = None
+    eval_graph: Optional[dict] = None    # nested inference TaskGraph.to_dict()
+
+
+@dataclass
+class TrainingTaskGraph:
+    request_id: int
+    model_source: str
+    nodes: list[TrainNode] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "request_id": self.request_id,
+            "model_source": self.model_source,
+            "nodes": [asdict(n) for n in self.nodes],
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":")) + "\n"
+
+
+def build_training_task_graph(
+    request_id: int,
+    model_source: str,
+    max_steps: int,
+    batch_size: int,
+    seq_len: int,
+    loss_trajectory: list[float],
+    evals: list[EvalPoint],
+) -> TrainingTaskGraph:
+    """Transform a LoRA training run (+ mid-training evals) into a branching DAG.
+
+    The spine is ``max_steps`` ``train_step`` nodes chained via ``next``. Each
+    ``EvalPoint`` adds an ``eval`` node that forks off the spine node at its
+    checkpoint (``branches``) and carries a nested inference graph + metric.
+    """
+    dims = dims_for(model_source)
+    step_flops = train_step_flops(dims, batch_size, seq_len)
+
+    nodes: list[TrainNode] = []
+
+    # --- the training spine ---
+    for s in range(max_steps):
+        loss = loss_trajectory[s] if s < len(loss_trajectory) else None
+        nodes.append(TrainNode(
+            id=s,
+            kind="train_step",
+            flops=step_flops,
+            step=s,
+            next=(s + 1) if s + 1 < max_steps else None,
+            loss=loss,
+        ))
+
+    # --- eval branches ---
+    next_id = max_steps
+    for ev in evals:
+        spine_idx = ev.step - 1
+        if not (0 <= spine_idx < max_steps):
+            raise ValueError(f"eval step {ev.step} out of range 1..{max_steps}")
+
+        # The eval expands into the inference graph over a representative sample.
+        eval_graph = None
+        eval_flops = 0
+        if ev.sample_prompt or ev.sample_output:
+            sub = build_task_graph(
+                request_id=next_id,
+                prompt=ev.sample_prompt,
+                output=ev.sample_output,
+                model_source=model_source,
+            )
+            eval_graph = sub.to_dict()
+            eval_flops = sum(t.flops for t in sub.tasks)  # eval is forward-only
+
+        eval_node = TrainNode(
+            id=next_id,
+            kind="eval",
+            flops=eval_flops,
+            step=ev.step,
+            next=None,
+            eval_metric=ev.metric,
+            eval_graph=eval_graph,
+        )
+        nodes.append(eval_node)
+
+        # Materialize the checkpoint weights on the spine node the eval forks off.
+        spine = nodes[spine_idx]
+        spine.branches.append(next_id)
+        spine.checkpoint_digest = ev.checkpoint_digest
+
+        next_id += 1
+
+    return TrainingTaskGraph(
+        request_id=request_id,
+        model_source=model_source,
+        nodes=nodes,
+    )
