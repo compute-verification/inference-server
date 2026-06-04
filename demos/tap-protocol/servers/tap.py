@@ -28,8 +28,18 @@ if str(DEMO_DIR) not in sys.path:
 from servers.envelope import SignedEnvelope, verify
 
 
-def _async_verify(recomp_url: str, request_env: dict, response_env: dict) -> None:
-    """Fire-and-forget POST to recomp /verify. Logs verdict; ignores failures."""
+def _async_verify(
+    recomp_url: str,
+    request_env: dict,
+    response_env: dict,
+    compare_server_url: str = "",
+) -> None:
+    """Fire-and-forget POST to recomp /verify. Logs verdict; ignores failures.
+
+    If ``compare_server_url`` is set and recomp returns its recomputed output,
+    also forward both clusters' outputs to the proof server's /compare so it can
+    compare them and build a task graph (see ``demos/proof-compare/``).
+    """
     try:
         body = json.dumps({
             "request_data": request_env,
@@ -46,10 +56,53 @@ def _async_verify(recomp_url: str, request_env: dict, response_env: dict) -> Non
         sys.stderr.write(f"[tap] verify verdict for id={request_env.get('data', {}).get('id')}: {verdict}\n")
     except HTTPError as exc:
         sys.stderr.write(f"[tap] verify HTTP {exc.code}: {exc.reason}\n")
+        return
     except URLError as exc:
         sys.stderr.write(f"[tap] verify unreachable: {exc.reason}\n")
+        return
     except Exception as exc:  # noqa: BLE001
         sys.stderr.write(f"[tap] verify failed: {exc}\n")
+        return
+
+    if compare_server_url and isinstance(verdict, dict) and "recomp_output" in verdict:
+        _async_compare(compare_server_url, request_env, response_env, verdict["recomp_output"])
+
+
+def _async_compare(
+    compare_server_url: str,
+    request_env: dict,
+    response_env: dict,
+    recomp_output: str,
+) -> None:
+    """POST {id, prompt, host_output, recomp_output} to the proof server /compare.
+
+    The proof server bitwise-compares the two cluster outputs and builds a task
+    graph. Fire-and-forget: failures never affect the client request.
+    """
+    try:
+        rid = request_env.get("data", {}).get("id")
+        prompt = request_env.get("data", {}).get("payload", {}).get("prompt", "")
+        host_output = response_env.get("data", {}).get("payload", {}).get("output", "")
+        body = json.dumps({
+            "id": rid,
+            "prompt": prompt,
+            "host_output": host_output,
+            "recomp_output": recomp_output,
+        }).encode("utf-8")
+        req = Request(
+            f"{compare_server_url}/compare",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(req, timeout=30) as resp:
+            resp.read()
+    except HTTPError as exc:
+        sys.stderr.write(f"[tap] compare HTTP {exc.code}: {exc.reason}\n")
+    except URLError as exc:
+        sys.stderr.write(f"[tap] compare unreachable: {exc.reason}\n")
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"[tap] compare failed: {exc}\n")
 
 
 def _async_proof_copy(proof_server_url: str, request_env: dict, response_env: dict) -> None:
@@ -84,6 +137,7 @@ class TapHandler(BaseHTTPRequestHandler):
     host_url: str = ""
     recomp_url: str = ""
     proof_server_url: str = ""  # empty disables the proof-server fan-out
+    compare_server_url: str = ""  # empty disables the compare/task-graph fan-out
 
     def _send_json(self, code: int, body: dict) -> None:
         payload = json.dumps(body).encode("utf-8")
@@ -147,7 +201,8 @@ class TapHandler(BaseHTTPRequestHandler):
         # Then spawn the async verification tap-copy.
         threading.Thread(
             target=_async_verify,
-            args=(self.recomp_url, req_env.model_dump(), resp_env.model_dump()),
+            args=(self.recomp_url, req_env.model_dump(), resp_env.model_dump(),
+                  self.compare_server_url),
             daemon=True,
         ).start()
 
@@ -177,11 +232,15 @@ def main() -> int:
     parser.add_argument("--proof-server-url", default="",
                         help="Optional. If set, every verified envelope pair is "
                              "also POSTed to <url>/tap-copy.")
+    parser.add_argument("--compare-server-url", default="",
+                        help="Optional. If set, after recomp verifies, both "
+                             "clusters' outputs are POSTed to <url>/compare.")
     args = parser.parse_args()
 
     TapHandler.host_url = args.host_url.rstrip("/")
     TapHandler.recomp_url = args.recomp_url.rstrip("/")
     TapHandler.proof_server_url = args.proof_server_url.rstrip("/")
+    TapHandler.compare_server_url = args.compare_server_url.rstrip("/")
 
     server = ThreadedHTTPServer((args.host, args.port), TapHandler)
 
@@ -192,8 +251,9 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _shutdown)
 
     ps = TapHandler.proof_server_url or "<disabled>"
+    cs = TapHandler.compare_server_url or "<disabled>"
     print(f"[tap] listening on {args.host}:{args.port}; host={TapHandler.host_url}; "
-          f"recomp={TapHandler.recomp_url}; proof_server={ps}")
+          f"recomp={TapHandler.recomp_url}; proof_server={ps}; compare_server={cs}")
     sys.stdout.flush()
     try:
         server.serve_forever()

@@ -272,7 +272,9 @@ class RecompHandler(BaseHTTPRequestHandler):
         expected = inner_resp.output
         actual = recomp_output
         if expected == actual:
-            return self._send_json(200, {"is_verified": True})
+            # Return the recomputed output too, so a downstream proof server
+            # (the compare + task-graph variant) can do its own comparison.
+            return self._send_json(200, {"is_verified": True, "recomp_output": actual})
 
         _log_alarm({
             "id": req_env.data.id,
@@ -285,7 +287,7 @@ class RecompHandler(BaseHTTPRequestHandler):
             "reason": "output_mismatch",
             "verified_at": utc_now_iso(),
         })
-        return self._send_json(200, {"is_verified": False, "reason": "output_mismatch"})
+        return self._send_json(200, {"is_verified": False, "reason": "output_mismatch", "recomp_output": actual})
 
     def log_message(self, format, *args):  # noqa: A002
         sys.stderr.write("[recomp_cluster] " + (format % args) + "\n")
