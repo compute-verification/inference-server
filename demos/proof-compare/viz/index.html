@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Task graphs — deterministic serving stack</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #30363d;
+    --ink: #e6edf3; --dim: #8b949e;
+    --prefill: #f0883e; --decode: #58a6ff; --train: #bc8cff; --eval: #3fb950;
+    --edge: #6e7681;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  header { padding: 28px 32px 8px; }
+  h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 13px; max-width: 820px; }
+  .tabs { display: flex; gap: 8px; padding: 16px 32px 0; }
+  .tab {
+    padding: 8px 16px; border: 1px solid var(--line); border-bottom: none;
+    background: var(--panel); color: var(--dim); cursor: pointer;
+    border-radius: 8px 8px 0 0; font-weight: 600;
+  }
+  .tab.active { color: var(--ink); background: #1f2630; }
+  .scene { display: none; padding: 0 32px 48px; }
+  .scene.active { display: block; }
+  .canvas {
+    border: 1px solid var(--line); border-radius: 0 8px 8px 8px;
+    background:
+      radial-gradient(circle at 1px 1px, #21262d 1px, transparent 0) 0 0 / 28px 28px,
+      var(--panel);
+    overflow: auto;
+  }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; padding: 16px 4px 0; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .meta { color: var(--dim); padding: 10px 4px 0; font-size: 12.5px; }
+  svg { display: block; }
+  .card { cursor: default; }
+  .card .title { font-weight: 700; font-size: 12px; }
+  .card .l1, .card .l2 { font-size: 11.5px; }
+  .card text { fill: var(--ink); }
+  .muted { fill: var(--dim); }
+  .badge { font-size: 10px; }
+  .tip {
+    position: fixed; pointer-events: none; z-index: 10; max-width: 320px;
+    background: #1f2630; border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; font-size: 12px; color: var(--ink);
+    box-shadow: 0 8px 24px rgba(0,0,0,.5); opacity: 0; transition: opacity .08s;
+  }
+  .tip b { color: #fff; }
+  .tip .k { color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Task graphs · deterministic serving stack</h1>
+  <div class="sub">
+    Each <b>task</b> is one forward pass. A task records the FLOPs it costs, the
+    context fed into it, and a pointer to the task that consumes its output.
+    Hover any node for detail.
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-scene="inference">Inference (chain)</div>
+  <div class="tab" data-scene="training">LoRA training (branching DAG)</div>
+</div>
+
+<div class="scene active" id="inference">
+  <div class="canvas"><div id="inf-host"></div></div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--prefill)"></i> prefill — whole prompt at once (fat)</span>
+    <span><i class="dot" style="background:var(--decode)"></i> decode — 1 token (thin)</span>
+    <span>→ edge carries the emitted token into the next pass</span>
+  </div>
+  <div class="meta" id="inf-meta"></div>
+</div>
+
+<div class="scene" id="training">
+  <div class="canvas"><div id="trn-host"></div></div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--train)"></i> train step — fwd + bwd + update (~6N)</span>
+    <span><i class="dot" style="background:var(--eval)"></i> eval — forward-only branch off a checkpoint</span>
+    <span><i class="dot" style="background:var(--decode)"></i> nested inference task</span>
+    <span>⇣ dashed edge = checkpoint weights forked to an eval</span>
+  </div>
+  <div class="meta" id="trn-meta"></div>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+const DATA = {"inference": {"request_id": 1, "model_source": "hf://Qwen/Qwen3-1.7B", "vocab": {"0": "The ", "1": "capital ", "2": "of ", "3": "France ", "4": "is", "5": " ", "6": "Paris, ", "7": "a ", "8": "city ", "9": "light."}, "tasks": [{"id": 0, "flops": 17205734400, "prompt": [0, 1, 2, 3, 4], "next": 1, "kind": "prefill", "output_token": 5}, {"id": 1, "flops": 3441376256, "prompt": [0, 1, 2, 3, 4, 5], "next": 2, "kind": "decode", "output_token": 6}, {"id": 2, "flops": 3441605632, "prompt": [0, 1, 2, 3, 4, 5, 6], "next": 3, "kind": "decode", "output_token": 7}, {"id": 3, "flops": 3441835008, "prompt": [0, 1, 2, 3, 4, 5, 6, 7], "next": 4, "kind": "decode", "output_token": 8}, {"id": 4, "flops": 3442064384, "prompt": [0, 1, 2, 3, 4, 5, 6, 7, 8], "next": 5, "kind": "decode", "output_token": 2}, {"id": 5, "flops": 3442293760, "prompt": [0, 1, 2, 3, 4, 5, 6, 7, 8, 2], "next": null, "kind": "decode", "output_token": 9}]}, "training": {"request_id": 1, "model_source": "hf://Qwen/Qwen3-1.7B", "nodes": [{"id": 0, "kind": "train_step", "flops": 165208080384, "step": 0, "next": 1, "branches": [], "loss": 2.0, "checkpoint_digest": null, "eval_metric": null, "eval_graph": null}, {"id": 1, "kind": "train_step", "flops": 165208080384, "step": 1, "next": 2, "branches": [6], "loss": 1.6, "checkpoint_digest": "sha256:aa11", "eval_metric": null, "eval_graph": null}, {"id": 2, "kind": "train_step", "flops": 165208080384, "step": 2, "next": 3, "branches": [], "loss": 1.3, "checkpoint_digest": null, "eval_metric": null, "eval_graph": null}, {"id": 3, "kind": "train_step", "flops": 165208080384, "step": 3, "next": 4, "branches": [7], "loss": 1.1, "checkpoint_digest": "sha256:bb22", "eval_metric": null, "eval_graph": null}, {"id": 4, "kind": "train_step", "flops": 165208080384, "step": 4, "next": 5, "branches": [], "loss": 0.95, "checkpoint_digest": null, "eval_metric": null, "eval_graph": null}, {"id": 5, "kind": "train_step", "flops": 165208080384, "step": 5, "next": null, "branches": [8], "loss": 0.9, "checkpoint_digest": "sha256:cc33", "eval_metric": null, "eval_graph": null}, {"id": 6, "kind": "eval", "flops": 17204816896, "step": 2, "next": null, "branches": [], "loss": null, "checkpoint_digest": null, "eval_metric": 1.5, "eval_graph": {"request_id": 6, "model_source": "hf://Qwen/Qwen3-1.7B", "vocab": {"0": "2 ", "1": "+ ", "2": "=", "3": " ", "4": "4"}, "tasks": [{"id": 0, "flops": 13763670016, "prompt": [0, 1, 0, 2], "next": 1, "kind": "prefill", "output_token": 3}, {"id": 1, "flops": 3441146880, "prompt": [0, 1, 0, 2, 3], "next": null, "kind": "decode", "output_token": 4}]}}, {"id": 7, "kind": "eval", "flops": 17204816896, "step": 4, "next": null, "branches": [], "loss": null, "checkpoint_digest": null, "eval_metric": 1.2, "eval_graph": {"request_id": 7, "model_source": "hf://Qwen/Qwen3-1.7B", "vocab": {"0": "2 ", "1": "+ ", "2": "=", "3": " ", "4": "4"}, "tasks": [{"id": 0, "flops": 13763670016, "prompt": [0, 1, 0, 2], "next": 1, "kind": "prefill", "output_token": 3}, {"id": 1, "flops": 3441146880, "prompt": [0, 1, 0, 2, 3], "next": null, "kind": "decode", "output_token": 4}]}}, {"id": 8, "kind": "eval", "flops": 17204816896, "step": 6, "next": null, "branches": [], "loss": null, "checkpoint_digest": null, "eval_metric": 0.8, "eval_graph": {"request_id": 8, "model_source": "hf://Qwen/Qwen3-1.7B", "vocab": {"0": "2 ", "1": "+ ", "2": "=", "3": " ", "4": "4"}, "tasks": [{"id": 0, "flops": 13763670016, "prompt": [0, 1, 0, 2], "next": 1, "kind": "prefill", "output_token": 3}, {"id": 1, "flops": 3441146880, "prompt": [0, 1, 0, 2, 3], "next": null, "kind": "decode", "output_token": 4}]}}]}};
+
+const SVGNS = "http://www.w3.org/2000/svg";
+const el = (n, a={}, kids=[]) => {
+  const e = document.createElementNS(SVGNS, n);
+  for (const k in a) e.setAttribute(k, a[k]);
+  for (const c of [].concat(kids)) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  return e;
+};
+function fmtFlops(n) {
+  const u = ["FLOP","KFLOP","MFLOP","GFLOP","TFLOP","PFLOP"]; let i = 0;
+  while (n >= 1000 && i < u.length-1) { n /= 1000; i++; }
+  return (n < 10 ? n.toFixed(2) : n.toFixed(1)) + " " + u[i];
+}
+const decode = (ids, vocab) => ids.map(i => vocab[i] ?? "·").join("");
+
+// ---- shared node card ----
+function card(x, y, w, h, color, lines, tip) {
+  const g = el("g", { class: "card", transform: `translate(${x},${y})` });
+  g.appendChild(el("rect", { x:0, y:0, width:w, height:h, rx:9,
+    fill:"#1c222b", stroke:color, "stroke-width":1.5 }));
+  g.appendChild(el("rect", { x:0, y:0, width:5, height:h, rx:0, fill:color }));
+  let ty = 19;
+  lines.forEach((ln, i) => {
+    g.appendChild(el("text", { x:14, y:ty, class: i===0 ? "title" : (ln.muted?"l1 muted":"l1"),
+      fill: i===0 ? color : (ln.muted ? "var(--dim)" : "var(--ink)") }, ln.t ?? ln));
+    ty += i===0 ? 19 : 16;
+  });
+  if (tip) bindTip(g, tip);
+  return g;
+}
+// ---- flops bar at bottom of a card ----
+function flopsBar(w, h, frac, color) {
+  const g = el("g");
+  g.appendChild(el("rect", { x:14, y:h-14, width:w-28, height:5, rx:2.5, fill:"#2d333b" }));
+  g.appendChild(el("rect", { x:14, y:h-14, width:Math.max(3,(w-28)*frac), height:5, rx:2.5, fill:color }));
+  return g;
+}
+function arrow(x1,y1,x2,y2,color,dashed) {
+  return el("path", { d:`M${x1},${y1} L${x2},${y2}`, stroke:color, "stroke-width":1.6,
+    fill:"none", "marker-end":"url(#arr)", ...(dashed?{ "stroke-dasharray":"5 4" }:{}) });
+}
+function defs() {
+  const d = el("defs");
+  const m = el("marker", { id:"arr", viewBox:"0 0 10 10", refX:9, refY:5,
+    markerWidth:7, markerHeight:7, orient:"auto-start-reverse" });
+  m.appendChild(el("path", { d:"M0,0 L10,5 L0,10 z", fill:"var(--edge)" }));
+  d.appendChild(m);
+  return d;
+}
+
+// ---- tooltip ----
+const tip = document.getElementById("tip");
+function bindTip(node, html) {
+  node.addEventListener("mousemove", e => {
+    tip.innerHTML = html; tip.style.opacity = 1;
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + 330 > innerWidth) x = e.clientX - 330;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  });
+  node.addEventListener("mouseleave", () => { tip.style.opacity = 0; });
+}
+
+// =====================================================================
+// Inference chain
+// =====================================================================
+function renderInference(host, meta) {
+  const g = DATA.inference, tasks = g.tasks, vocab = g.vocab;
+  const maxF = Math.max(...tasks.map(t => t.flops));
+  const W = 168, H = 78, GAP = 56, PADX = 36, PADY = 60;
+  const svgW = PADX*2 + tasks.length*W + (tasks.length-1)*GAP;
+  const svg = el("svg", { width: svgW, height: 220, viewBox:`0 0 ${svgW} 220` });
+  svg.appendChild(defs());
+
+  const xOf = i => PADX + i*(W+GAP);
+  // edges first
+  tasks.forEach(t => {
+    if (t.next != null) {
+      const i = tasks.findIndex(x=>x.id===t.id), j = tasks.findIndex(x=>x.id===t.next);
+      svg.appendChild(arrow(xOf(i)+W, PADY+H/2, xOf(j), PADY+H/2, "var(--edge)"));
+    }
+  });
+  // nodes
+  tasks.forEach((t, i) => {
+    const color = t.kind === "prefill" ? "var(--prefill)" : "var(--decode)";
+    const tok = vocab[t.output_token] ?? "·";
+    const title = t.kind === "prefill" ? "PREFILL" : `DECODE #${i}`;
+    const c = card(xOf(i), PADY, W, H, color, [
+      title,
+      { t: `→ "${tok.replace(/\s/g,"·")}"` },
+      { t: fmtFlops(t.flops), muted:true },
+    ], `<b>${title}</b><br><span class="k">emits token:</span> "${tok}"<br>
+        <span class="k">context in (${t.prompt.length} tok):</span> "${decode(t.prompt,vocab)}"<br>
+        <span class="k">flops:</span> ${t.flops.toLocaleString()} (${fmtFlops(t.flops)})<br>
+        <span class="k">next:</span> ${t.next==null?"— (end)":"task "+t.next}`);
+    c.appendChild(flopsBar(W, H, t.flops/maxF, color));
+    svg.appendChild(c);
+  });
+  host.innerHTML = ""; host.appendChild(svg);
+  meta.textContent = `model ${g.model_source} · ${tasks.length} tasks · prefill is `
+    + (maxF / tasks[1].flops).toFixed(1) + "× the cost of one decode step";
+}
+
+// =====================================================================
+// Training DAG: spine + eval branches (each nesting an inference graph)
+// =====================================================================
+function renderTraining(host, meta) {
+  const g = DATA.training, nodes = g.nodes;
+  const spine = nodes.filter(n => n.kind === "train_step");
+  const evals = nodes.filter(n => n.kind === "eval");
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const maxF = Math.max(...spine.map(n => n.flops));
+
+  const W=152, H=80, GAP=46, PADX=36, SPINE_Y=44;
+  const EVAL_Y=210, EW=190, EH=70, NEST_Y=320;
+  const svgW = PADX*2 + spine.length*W + (spine.length-1)*GAP;
+  const svg = el("svg", { width: svgW, height: 440, viewBox:`0 0 ${svgW} 440` });
+  svg.appendChild(defs());
+  const xOf = i => PADX + i*(W+GAP);
+
+  // spine edges
+  spine.forEach((n,i) => {
+    if (n.next != null && byId[n.next]) {
+      const j = spine.findIndex(x=>x.id===n.next);
+      svg.appendChild(arrow(xOf(i)+W, SPINE_Y+H/2, xOf(j), SPINE_Y+H/2, "var(--edge)"));
+    }
+  });
+
+  // eval branches + nested inference graphs
+  let evIdx = 0;
+  spine.forEach((n,i) => {
+    n.branches.forEach(bid => {
+      const ev = byId[bid];
+      const ex = xOf(i) + W/2 - EW/2 + (evIdx? 0:0);
+      const eyTop = EVAL_Y;
+      // dashed checkpoint edge
+      svg.appendChild(arrow(xOf(i)+W/2, SPINE_Y+H, xOf(i)+W/2, eyTop, "var(--eval)", true));
+      svg.appendChild(el("text", { x:xOf(i)+W/2+8, y:(SPINE_Y+H+eyTop)/2, class:"badge", fill:"var(--eval)" },
+        "ckpt " + (n.checkpoint_digest||"")));
+      // eval card
+      const ec = card(ex, eyTop, EW, EH, "var(--eval)", [
+        `EVAL @ step ${ev.step}`,
+        { t: `metric ${ev.eval_metric}  ·  forward-only` },
+        { t: fmtFlops(ev.flops), muted:true },
+      ], `<b>EVAL @ step ${ev.step}</b><br><span class="k">runs the checkpoint adapter over the eval set</span><br>
+          <span class="k">metric:</span> ${ev.eval_metric}<br>
+          <span class="k">flops:</span> ${fmtFlops(ev.flops)} (sum of nested forward passes)<br>
+          <span class="k">expands into:</span> the inference graph below`);
+      svg.appendChild(ec);
+
+      // nested inference graph (mini chain) under the eval card
+      const sub = ev.eval_graph, st = sub.tasks, sv = sub.vocab;
+      const nx0 = ex + 8, nw = 80, ngap = 22, ny = NEST_Y;
+      svg.appendChild(arrow(ex+EW/2, eyTop+EH, ex+EW/2, ny-6, "var(--edge)", true));
+      st.forEach((t,k) => {
+        const col = t.kind==="prefill" ? "var(--prefill)" : "var(--decode)";
+        const cx = nx0 + k*(nw+ngap);
+        if (k>0) svg.appendChild(arrow(cx-ngap, ny+16, cx, ny+16, "var(--edge)"));
+        const mc = card(cx, ny, nw, 38, col, [
+          t.kind==="prefill"?"prefill":"decode",
+          { t: fmtFlops(t.flops), muted:true },
+        ], `<b>nested ${t.kind}</b><br><span class="k">emits:</span> "${sv[t.output_token]}"<br>
+            <span class="k">flops:</span> ${fmtFlops(t.flops)}`);
+        svg.appendChild(mc);
+      });
+      evIdx++;
+    });
+  });
+
+  // spine nodes (drawn last, on top)
+  spine.forEach((n,i) => {
+    const c = card(xOf(i), SPINE_Y, W, H, "var(--train)", [
+      `STEP ${n.step}`,
+      { t: `loss ${n.loss}` },
+      { t: fmtFlops(n.flops), muted:true },
+    ], `<b>TRAIN STEP ${n.step}</b><br><span class="k">forward + backward + optimizer update</span><br>
+        <span class="k">loss:</span> ${n.loss}<br>
+        <span class="k">flops:</span> ${fmtFlops(n.flops)}<br>
+        ${n.checkpoint_digest?`<span class="k">checkpoint:</span> ${n.checkpoint_digest} → eval`:`<span class="k">(no checkpoint materialized here)</span>`}`);
+    c.appendChild(flopsBar(W, H, n.flops/maxF, "var(--train)"));
+    if (n.checkpoint_digest)
+      c.appendChild(el("circle", { cx:W-12, cy:12, r:5, fill:"var(--eval)" }));
+    svg.appendChild(c);
+  });
+
+  host.innerHTML = ""; host.appendChild(svg);
+  meta.textContent = `model ${g.model_source} · ${spine.length} train steps + ${evals.length} evals = ${nodes.length} nodes · `
+    + `one train step ≈ ${(maxF/evals[0].flops).toFixed(1)}× one eval`;
+}
+
+// ---- tabs ----
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".scene").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  document.getElementById(t.dataset.scene).classList.add("active");
+}));
+
+renderInference(document.getElementById("inf-host"), document.getElementById("inf-meta"));
+renderTraining(document.getElementById("trn-host"), document.getElementById("trn-meta"));
+</script>
+</body>
+</html>
