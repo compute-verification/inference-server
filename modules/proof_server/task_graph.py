@@ -523,3 +523,95 @@ def build_spec_decode_task_graph(
         nodes=nodes,
         edges=edges,
     )
+
+
+# ===========================================================================
+# Coding-agent task graph: a search -> plan -> codegen -> verify diamond.
+# ===========================================================================
+#
+# A simple coding agent that implements a paper: it runs one or more retrieval
+# steps (web search / fetch), those fan IN to a single plan node (the extracted
+# algorithm), which fans OUT to one or more codegen steps (files written), which
+# fan IN to a verify node (run the tests). Unlike the prior three graphs the
+# "work" isn't forward passes -- nodes are tool calls / reasoning steps -- but
+# the dependency-DAG framing is the same. The whole task is not one-shottable
+# without the retrievals: a paper after the model's cutoff can't be implemented
+# from memory.
+
+
+@dataclass
+class CodingNode:
+    id: int
+    kind: str        # "search" | "fetch" | "plan" | "codegen" | "verify"
+    label: str       # short title
+    detail: str      # the query / url / file path / result
+    status: str      # "ok" | "fail"
+
+
+@dataclass
+class CodingEdge:
+    src: int
+    dst: int
+    kind: str        # "informs" (retrieval->plan) | "plans" (plan->codegen) | "verifies" (codegen->verify)
+
+
+@dataclass
+class CodingAgentTaskGraph:
+    request_id: int
+    goal: str
+    nodes: list[CodingNode] = field(default_factory=list)
+    edges: list[CodingEdge] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "request_id": self.request_id,
+            "goal": self.goal,
+            "nodes": [asdict(n) for n in self.nodes],
+            "edges": [asdict(e) for e in self.edges],
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":")) + "\n"
+
+
+def build_coding_agent_task_graph(
+    request_id: int,
+    goal: str,
+    retrievals: list[dict],
+    plan: dict,
+    codegens: list[dict],
+    verify: dict,
+) -> CodingAgentTaskGraph:
+    """Build the search -> plan -> codegen -> verify diamond from a captured run.
+
+    ``retrievals`` is a list of ``{"kind": "search"|"fetch", "label", "detail",
+    "status"?}``; ``plan``/``verify`` are ``{"label", "detail", "status"?}``;
+    ``codegens`` is a list of the same shape. Edges: every retrieval informs the
+    plan, the plan drives every codegen, every codegen feeds the verify.
+    """
+    nodes: list[CodingNode] = []
+    edges: list[CodingEdge] = []
+    nid = 0
+
+    def add(kind: str, spec: dict) -> int:
+        nonlocal nid
+        nodes.append(CodingNode(id=nid, kind=kind, label=spec["label"],
+                                detail=spec.get("detail", ""),
+                                status=spec.get("status", "ok")))
+        nid += 1
+        return nid - 1
+
+    retrieval_ids = [add(r["kind"], r) for r in retrievals]
+    plan_id = add("plan", plan)
+    for rid in retrieval_ids:
+        edges.append(CodingEdge(src=rid, dst=plan_id, kind="informs"))
+
+    codegen_ids = [add("codegen", c) for c in codegens]
+    for cid in codegen_ids:
+        edges.append(CodingEdge(src=plan_id, dst=cid, kind="plans"))
+
+    verify_id = add("verify", verify)
+    for cid in codegen_ids:
+        edges.append(CodingEdge(src=cid, dst=verify_id, kind="verifies"))
+
+    return CodingAgentTaskGraph(request_id=request_id, goal=goal, nodes=nodes, edges=edges)

@@ -12,6 +12,7 @@ from modules.proof_server.task_graph import (
     DEFAULT_DIMS,
     MODEL_DIMS,
     EvalPoint,
+    build_coding_agent_task_graph,
     build_spec_decode_task_graph,
     build_task_graph,
     build_training_task_graph,
@@ -287,6 +288,67 @@ class TestSpecDecodeTaskGraph(unittest.TestCase):
         self.assertEqual(parsed["draft_model"], "hf://Qwen/Qwen3-0.6B")
         self.assertEqual(len(parsed["nodes"]), 15)
         self.assertEqual(len(parsed["edges"]), 9 + 12 + 2)  # draft + verify_in + commit
+
+
+class TestCodingAgentTaskGraph(unittest.TestCase):
+    def setUp(self):
+        self.g = build_coding_agent_task_graph(
+            request_id=1,
+            goal="implement p-less sampling",
+            retrievals=[
+                {"kind": "search", "label": "search: sampling papers", "detail": "q1"},
+                {"kind": "fetch", "label": "fetch: arxiv html", "detail": "url"},
+                {"kind": "fetch", "label": "fetch: reference code", "detail": "url2"},
+            ],
+            plan={"label": "extract algorithm", "detail": "collision-likelihood threshold"},
+            codegens=[
+                {"label": "write p_less.py", "detail": "impl"},
+                {"label": "write test_p_less.py", "detail": "tests"},
+            ],
+            verify={"label": "run tests", "detail": "9 passed", "status": "ok"},
+        )
+        self.byid = {n.id: n for n in self.g.nodes}
+
+    def _k(self, kind):
+        return [n for n in self.g.nodes if n.kind == kind]
+
+    def _e(self, kind):
+        return [e for e in self.g.edges if e.kind == kind]
+
+    def test_node_counts(self):
+        self.assertEqual(len(self._k("search")), 1)
+        self.assertEqual(len(self._k("fetch")), 2)
+        self.assertEqual(len(self._k("plan")), 1)
+        self.assertEqual(len(self._k("codegen")), 2)
+        self.assertEqual(len(self._k("verify")), 1)
+        self.assertEqual(len(self.g.nodes), 7)
+
+    def test_retrievals_fan_in_to_plan(self):
+        plan = self._k("plan")[0]
+        informs = self._e("informs")
+        self.assertEqual(len(informs), 3)              # one per retrieval
+        self.assertTrue(all(e.dst == plan.id for e in informs))
+        srcs = {self.byid[e.src].kind for e in informs}
+        self.assertEqual(srcs, {"search", "fetch"})
+
+    def test_plan_fans_out_to_codegen(self):
+        plan = self._k("plan")[0]
+        plans = self._e("plans")
+        self.assertEqual(len(plans), 2)
+        self.assertTrue(all(e.src == plan.id for e in plans))
+        self.assertTrue(all(self.byid[e.dst].kind == "codegen" for e in plans))
+
+    def test_codegen_feeds_verify(self):
+        verify = self._k("verify")[0]
+        v = self._e("verifies")
+        self.assertEqual(len(v), 2)
+        self.assertTrue(all(e.dst == verify.id for e in v))
+
+    def test_serializes_to_canonical_json(self):
+        parsed = json.loads(self.g.to_json())
+        self.assertEqual(parsed["goal"], "implement p-less sampling")
+        self.assertEqual(len(parsed["nodes"]), 7)
+        self.assertEqual(len(parsed["edges"]), 3 + 2 + 2)
 
 
 if __name__ == "__main__":
