@@ -252,7 +252,7 @@ function renderGraph(graph, host, meta, caption) {
   // nodes on top
   nodes.forEach(n => {
     const color = nodeColor(n);
-    const mark = n.status === "rejected" ? "✗ " : (n.kind === "test" || n.kind === "verify" ? "✓ " : "");
+    const mark = n.status === "rejected" ? "✗ " : (n.kind === "test" ? "✓ " : "");
     const label = (n.label || n.kind).slice(0, 24);
     const c = card(X(n.id), Y(n.id), CW, CH, color, [
       mark + n.kind,

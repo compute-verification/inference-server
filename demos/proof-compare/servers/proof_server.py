@@ -12,8 +12,8 @@ Data path (Tap forwards both):
 
 On ``POST /compare`` the server:
   1. bitwise-compares ``host_output`` vs ``recomp_output``, logs MATCH/MISMATCH,
-  2. builds a task graph from (prompt, host_output) -- see
-     ``modules.proof_server.task_graph`` -- and writes it to the work dir.
+  2. builds a task graph from (prompt, host_output) -- via the inference tracer
+     + ``modules.proof_server.graph.build_graph`` -- and writes it to the work dir.
      Nothing consumes the graph yet; building it is the point.
 
 ``GET /health`` returns running counters so a demo/test can assert progress.
@@ -116,7 +116,7 @@ class CompareHandler(BaseHTTPRequestHandler):
             graph_ok = True
             sys.stderr.write(
                 f"[proof-server] id={req_id} task graph: "
-                f"{len(graph.tasks)} tasks -> {out_path}\n"
+                f"{len(graph.nodes)} nodes -> {out_path}\n"
             )
         except Exception as exc:  # noqa: BLE001
             sys.stderr.write(f"[proof-server] id={req_id} task graph build failed: {exc}\n")
