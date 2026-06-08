@@ -24,6 +24,8 @@ from modules.proof_server.tracer import Tracer
 def trace_training_stub(model_key, max_steps, batch, seq_len, loss_trajectory,
                         eval_steps, eval_prompt_len=8, eval_gen=3):
     """Simulated LoRA run -> canonical trace. STUB (see module docstring)."""
+    if eval_steps <= 0:
+        raise ValueError("eval_steps must be >= 1")
     tr = Tracer()
     tr.add_shape(model_key, F.shape_for(model_key))
 
@@ -54,6 +56,7 @@ def trace_training_stub(model_key, max_steps, batch, seq_len, loss_trajectory,
                 prev_eval = tr.event(
                     "eval_decode", model=model_key, tokens=1, attended=ctx,
                     logits=1, inputs=[prev_eval], label="eval_decode",
+                    payload={"phase": "eval", "step": s + 1},
                 )
 
     return tr.trace()

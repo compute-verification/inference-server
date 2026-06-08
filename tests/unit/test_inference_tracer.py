@@ -41,10 +41,14 @@ class TestInferenceTracer(unittest.TestCase):
         decodes = [e for e in evs if e["kind"] == "decode"]
         self.assertEqual([e["attended"] for e in decodes], [4, 5, 6])
 
-    def test_builds_into_a_valid_graph_with_fat_prefill(self):
+    def test_prefill_costs_more_than_a_decode_step(self):
+        # The spec's actual claim: prefill (reads P tokens) > one decode (1 token).
+        # (Not "prefill is the global max" — a very long run's late decode can
+        # exceed it via attention over a huge context.)
         g = build_graph(_trace(max_tokens=4))
-        flops = [n["flops"] for n in g.nodes]
-        self.assertEqual(flops[0], max(flops))  # prefill is the fattest
+        prefill = next(n for n in g.nodes if n["kind"] == "prefill")
+        first_decode = next(n for n in g.nodes if n["kind"] == "decode")
+        self.assertGreater(prefill["flops"], first_decode["flops"])
 
     def test_zero_max_tokens_is_just_prefill(self):
         evs = _trace(max_tokens=0)["events"]

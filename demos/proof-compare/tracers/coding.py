@@ -38,8 +38,10 @@ def trace_coding_stub(agent_key, prompt, retrievals, plan, codegens, verify):
 
     prompt_id = add("prompt", prompt, [])
     retr_ids = [add(r["kind"], r, [prompt_id]) for r in retrievals]
-    plan_id = add("plan", plan, retr_ids)
+    # Keep the spine connected even with no retrievals/codegens (else the prompt
+    # becomes an orphan second root and the layered renderer drops it).
+    plan_id = add("plan", plan, retr_ids or [prompt_id])
     cg_ids = [add("codegen", c, [plan_id]) for c in codegens]
-    add("test", verify, cg_ids)
+    add("test", verify, cg_ids or [plan_id])
 
     return tr.trace()

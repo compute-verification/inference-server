@@ -72,6 +72,23 @@ class TestSpecDecodeTracer(unittest.TestCase):
         draft = next(n for n in g.nodes if n["kind"] == "draft")
         self.assertGreater(verify["flops"], draft["flops"])
 
+    def test_round_zero_first_draft_has_no_inputs(self):
+        self.assertEqual(self.evs[0]["kind"], "draft")
+        self.assertEqual(self.evs[0]["inputs"], [])
+
+    def test_all_rejected_round_advances_ctx_by_one(self):
+        # a=0 round: ctx must still advance by num_accepted+1 = 1.
+        trace = specdecode.trace_spec_decode(5, [
+            {"drafts": ["X", "Y"], "num_accepted": 0, "correction": "z"},
+            {"drafts": ["a", "b"], "num_accepted": 1, "correction": "c"},
+        ])
+        evs = trace["events"]
+        # round 1's first draft (chains off the round-0 verify) attends to ctx=6.
+        r1_first = next(e for e in evs if e["kind"] == "draft"
+                        and e["inputs"] and {evs[i]["id"]: evs[i] for i in range(len(evs))}[e["inputs"][0]]["kind"] == "verify")
+        self.assertEqual(r1_first["attended"], 6)  # 5 + (0+1)
+        build_graph(trace)  # also valid
+
 
 if __name__ == "__main__":
     unittest.main()
