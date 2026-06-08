@@ -167,12 +167,13 @@ Two sources, by context:
 - **Real GPU run (inference, Task 11):** read the live `model.config.to_dict()`
   → exact dims. This is the run that *proves* the cost model on real hardware.
 - **Everywhere else (spec-decode proof server, stubs, unit tests):** a static
-  `KNOWN_SHAPES` table in `flops.py` keyed by model id (`"Qwen/Qwen3-1.7B"`,
-  `"Qwen/Qwen3-0.6B"`, `"agent"`), each value a plain config dict. These contexts
-  have no GPU/live config; the static table is fine because the *exactness*
-  demonstration is the inference forcing function, and the other graphs are about
-  *shape*, not a hardware claim. Document this tradeoff in `KNOWN_SHAPES`'
-  docstring.
+  `KNOWN_SHAPES` table in `flops.py` keyed by **bare** model id
+  (`"Qwen/Qwen3-1.7B"`, `"Qwen/Qwen3-0.6B"`, `"agent"`), each value a plain config
+  dict, looked up via `shape_for(key)` which **strips a leading `hf://`** (the
+  servers pass `hf://`-prefixed sources). These contexts have no GPU/live config;
+  the static table is fine because the *exactness* demonstration is the inference
+  forcing function, and the other graphs are about *shape*, not a hardware claim.
+  Document this tradeoff in `KNOWN_SHAPES`' docstring.
 
 ---
 
@@ -273,6 +274,13 @@ One decode token at `s=500`, `mode="fwd"`, `logits=1`:
   f=3072,V=151936`) and `"agent"` (a documented ~32B stand-in, e.g.
   `L=64,d=5120,h=40,d_h=128,h_kv=8,f=27648,V=151936`). Docstring: explains these
   are for non-GPU contexts; the inference task overrides with live config.
+- **`shape_for(model_key) -> dict`** — the lookup the tracers/servers call. It
+  **normalizes the key by stripping a leading `hf://`** before indexing
+  `KNOWN_SHAPES` (the servers carry `hf://Qwen/Qwen3-1.7B` /
+  `hf://Qwen/Qwen3-0.6B`; the tracers may be handed either form). `KeyError` →
+  a clear `ValueError("unknown model shape: <key>; add it to KNOWN_SHAPES")`.
+  Test both `"Qwen/Qwen3-1.7B"` and `"hf://Qwen/Qwen3-1.7B"` resolve to the same
+  shape, and an unknown key raises.
 - `W_LAYER(shape) -> int` and `flops(shape, tokens, attended, mode="fwd",
   logits=0) -> int` implementing §2.5 exactly. `ValueError` on bad mode.
 
@@ -287,9 +295,12 @@ One decode token at `s=500`, `mode="fwd"`, `logits=1`:
   uses `h`, not `h_kv`).
 - `test_lora_weight_term_is_double_forward`: `attended=0, logits=1` →
   `flops(mode="lora_bwd") == 2*flops(mode="fwd")`.
-- `test_lora_full_step_is_just_over_2x`: realistic train shape
-  (`tokens=batch·seq`, `attended=batch·seq·(seq+1)//2`, `logits=batch·seq`) →
-  `2.0 < lora/fwd < 2.05` (proves attention is the small ×3 correction, not 2×).
+- `test_lora_full_step_is_just_over_2x`: pin a **small** train shape
+  (`batch=4, seq=64`; `tokens=batch·seq`, `attended=batch·seq·(seq+1)//2`,
+  `logits=batch·seq`) → `2.0 < lora/fwd < 2.05`. **The bound is
+  fixture-specific:** the ratio is `2 + attention_fraction`, which grows with
+  `seq` (it exceeds 2.05 past ~1600 tokens because the ×3 attention term grows).
+  Keep `seq` small in the test and add a comment saying so.
 - `test_attention_scales_linearly_with_attended`.
 - `test_bad_mode_raises` ; `test_zero_tokens_zero_attended_is_zero` (boundary).
 
@@ -415,8 +426,9 @@ loss_trajectory, eval_steps, eval_prompt_len=8, eval_gen=3) -> dict`:
 
 **Tests:** train_step count == max_steps; eval branches start at the right steps;
 each eval is `1 eval_prefill + eval_gen eval_decode` linked off a train_step; a
-`lora_bwd` train_step costs `2.0× < ratio < 2.05×` a same-args `fwd` (reuse the
-Task 1 fact); builds into a valid graph.
+`lora_bwd` train_step (stub `seq_len=8`) costs `2.0 < ratio < 2.01` a same-args
+`fwd` (small seq → tiny attention correction; see N2 note in Task 1); builds into
+a valid graph.
 
 **Commit:** `training tracer (stub): simulated run -> canonical trace`.
 
@@ -471,12 +483,22 @@ host, meta)`:
   step0 ─ step1 ─ step2 ─ step3 ─ ...        (spine, one per layer)
             └ eval_prefill ─ eval_decode ─ … (branch hangs at step's layer+1, stacked below)
   ```
-- **nodes:** reuse `card`/`flopsBar`/`fmtFlops` (DRY). Color by `kind` (keep the
-  existing color vars); if `node.status=="rejected"` dim it + mark ✗.
+- **nodes:** reuse `card`/`flopsBar`/`fmtFlops` (DRY). Color by `kind` via an
+  explicit `KIND_COLOR` map that covers **every** kind in `KINDS` — including the
+  new ones: `eval_prefill`→eval color, `eval_decode`→decode color, `test`→verify
+  color (reuse the existing CSS color vars). If `node.status=="rejected"` dim it +
+  mark ✗.
 - **edges:** reuse `arrow`; style by the **source/target node kind+status** (the
-  builder gives plain edges — styling lives here): rejected-draft source → red
-  dashed; `draft→verify` → faint thin (fan-in); else solid in the kind's color.
+  builder gives plain edges — styling lives here):
+  - source is a rejected draft → **red dashed**;
+  - `draft→verify` → **faint thin** (the fan-in);
+  - `verify→draft` → **solid** in the draft color (round handoff);
+  - else → solid in the source kind's color.
 - tooltip shows `payload` + `fmtFlops(flops)` + `tokens`.
+- **legend:** the four `<div class="legend">` blocks in the HTML are currently
+  scenario-specific and will be **stale** after unifying — update each tab's
+  legend to match the kinds its graph actually contains (or a single shared
+  legend). Don't leave the old labels.
 - the four tabs each call `renderGraph(DATA[key], …)`.
 
 **Verify (do it, don't skip):** `python3 demos/proof-compare/build_all.py`;
