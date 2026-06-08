@@ -539,12 +539,20 @@ def build_spec_decode_task_graph(
 # from memory.
 
 
+# Assumed coding-agent model size, used only for the FLOPs cost estimate
+# (flops ~= 2 * params * tokens, the same 2N rule as the inference graph).
+AGENT_PARAMS = 32_000_000_000
+
+
 @dataclass
 class CodingNode:
+    # Mirrors the inference Task: an input (prompt), a cost (flops), an output.
     id: int
-    kind: str        # "search" | "fetch" | "plan" | "codegen" | "verify"
-    label: str       # short title
-    detail: str      # the query / url / file path / result
+    kind: str        # "prompt" | "search" | "fetch" | "plan" | "codegen" | "verify"
+    flops: int       # cost of this step (~2 * AGENT_PARAMS * tokens)
+    tokens: int      # tokens processed (input + output) -- the basis for flops
+    prompt: str      # the context fed INTO this step
+    output: str      # what this step emitted
     status: str      # "ok" | "fail"
 
 
@@ -576,18 +584,22 @@ class CodingAgentTaskGraph:
 
 def build_coding_agent_task_graph(
     request_id: int,
-    goal: str,
+    prompt: dict,
     retrievals: list[dict],
     plan: dict,
     codegens: list[dict],
     verify: dict,
+    agent_params: int = AGENT_PARAMS,
 ) -> CodingAgentTaskGraph:
-    """Build the search -> plan -> codegen -> verify diamond from a captured run.
+    """Build the prompt -> retrieval -> plan -> codegen -> verify DAG from a run.
 
-    ``retrievals`` is a list of ``{"kind": "search"|"fetch", "label", "detail",
-    "status"?}``; ``plan``/``verify`` are ``{"label", "detail", "status"?}``;
-    ``codegens`` is a list of the same shape. Edges: every retrieval informs the
-    plan, the plan drives every codegen, every codegen feeds the verify.
+    The root is the user's ``prompt`` node (the graph starts from the prompt,
+    like the inference graph's prefill). Every other node mirrors the inference
+    Task: an input ``prompt``, a ``flops`` cost (``2 * agent_params * tokens``),
+    and an ``output``. Each spec is ``{"prompt", "output", "tokens", "status"?}``
+    (retrievals also carry ``"kind": "search"|"fetch"``). Edges: prompt -> each
+    retrieval (prompts), each retrieval -> plan (informs), plan -> each codegen
+    (plans), each codegen -> verify (verifies).
     """
     nodes: list[CodingNode] = []
     edges: list[CodingEdge] = []
@@ -595,13 +607,20 @@ def build_coding_agent_task_graph(
 
     def add(kind: str, spec: dict) -> int:
         nonlocal nid
-        nodes.append(CodingNode(id=nid, kind=kind, label=spec["label"],
-                                detail=spec.get("detail", ""),
-                                status=spec.get("status", "ok")))
+        tokens = int(spec.get("tokens", 0))
+        nodes.append(CodingNode(
+            id=nid, kind=kind, flops=2 * agent_params * tokens, tokens=tokens,
+            prompt=spec.get("prompt", ""), output=spec.get("output", ""),
+            status=spec.get("status", "ok")))
         nid += 1
         return nid - 1
 
+    prompt_id = add("prompt", prompt)
+
     retrieval_ids = [add(r["kind"], r) for r in retrievals]
+    for rid in retrieval_ids:
+        edges.append(CodingEdge(src=prompt_id, dst=rid, kind="prompts"))
+
     plan_id = add("plan", plan)
     for rid in retrieval_ids:
         edges.append(CodingEdge(src=rid, dst=plan_id, kind="informs"))
@@ -614,4 +633,5 @@ def build_coding_agent_task_graph(
     for cid in codegen_ids:
         edges.append(CodingEdge(src=cid, dst=verify_id, kind="verifies"))
 
-    return CodingAgentTaskGraph(request_id=request_id, goal=goal, nodes=nodes, edges=edges)
+    return CodingAgentTaskGraph(request_id=request_id, goal=prompt.get("prompt", ""),
+                                nodes=nodes, edges=edges)

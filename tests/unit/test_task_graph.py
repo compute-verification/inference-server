@@ -294,18 +294,18 @@ class TestCodingAgentTaskGraph(unittest.TestCase):
     def setUp(self):
         self.g = build_coding_agent_task_graph(
             request_id=1,
-            goal="implement p-less sampling",
+            prompt={"prompt": "implement p-less sampling", "output": "goal", "tokens": 25},
             retrievals=[
-                {"kind": "search", "label": "search: sampling papers", "detail": "q1"},
-                {"kind": "fetch", "label": "fetch: arxiv html", "detail": "url"},
-                {"kind": "fetch", "label": "fetch: reference code", "detail": "url2"},
+                {"kind": "search", "prompt": "q1", "output": "results", "tokens": 600},
+                {"kind": "fetch", "prompt": "url", "output": "html", "tokens": 6300},
+                {"kind": "fetch", "prompt": "url2", "output": "code", "tokens": 1500},
             ],
-            plan={"label": "extract algorithm", "detail": "collision-likelihood threshold"},
+            plan={"prompt": "fetched content", "output": "collision-likelihood threshold", "tokens": 2900},
             codegens=[
-                {"label": "write p_less.py", "detail": "impl"},
-                {"label": "write test_p_less.py", "detail": "tests"},
+                {"prompt": "the plan", "output": "impl", "tokens": 1200},
+                {"prompt": "the plan", "output": "tests", "tokens": 1400},
             ],
-            verify={"label": "run tests", "detail": "9 passed", "status": "ok"},
+            verify={"prompt": "test stdout", "output": "9 passed", "tokens": 400, "status": "ok"},
         )
         self.byid = {n.id: n for n in self.g.nodes}
 
@@ -316,12 +316,30 @@ class TestCodingAgentTaskGraph(unittest.TestCase):
         return [e for e in self.g.edges if e.kind == kind]
 
     def test_node_counts(self):
+        self.assertEqual(len(self._k("prompt")), 1)
         self.assertEqual(len(self._k("search")), 1)
         self.assertEqual(len(self._k("fetch")), 2)
         self.assertEqual(len(self._k("plan")), 1)
         self.assertEqual(len(self._k("codegen")), 2)
         self.assertEqual(len(self._k("verify")), 1)
-        self.assertEqual(len(self.g.nodes), 7)
+        self.assertEqual(len(self.g.nodes), 8)         # +1 for the root prompt
+
+    def test_prompt_is_the_root(self):
+        p = self._k("prompt")[0]
+        self.assertEqual(p.id, 0)
+        prompts = self._e("prompts")
+        self.assertEqual(len(prompts), 3)              # prompt -> each retrieval
+        self.assertTrue(all(e.src == p.id for e in prompts))
+        self.assertFalse(any(e.dst == p.id for e in self.g.edges))  # nothing precedes it
+
+    def test_every_node_has_a_flops_cost(self):
+        for n in self.g.nodes:
+            self.assertEqual(n.flops, 2 * 32_000_000_000 * n.tokens)
+            self.assertGreater(n.flops, 0)
+
+    def test_fetch_is_the_most_expensive(self):
+        # the big paper fetch dominates cost.
+        self.assertEqual(max(self.g.nodes, key=lambda n: n.flops).kind, "fetch")
 
     def test_retrievals_fan_in_to_plan(self):
         plan = self._k("plan")[0]
@@ -347,8 +365,8 @@ class TestCodingAgentTaskGraph(unittest.TestCase):
     def test_serializes_to_canonical_json(self):
         parsed = json.loads(self.g.to_json())
         self.assertEqual(parsed["goal"], "implement p-less sampling")
-        self.assertEqual(len(parsed["nodes"]), 7)
-        self.assertEqual(len(parsed["edges"]), 3 + 2 + 2)
+        self.assertEqual(len(parsed["nodes"]), 8)
+        self.assertEqual(len(parsed["edges"]), 3 + 3 + 2 + 2)  # prompts+informs+plans+verifies
 
 
 if __name__ == "__main__":
