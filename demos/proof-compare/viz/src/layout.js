@@ -72,6 +72,47 @@ async function elkPositions(nodes, edges) {
   return new Map(laid.children.map((c) => [c.id, { x: c.x, y: c.y }]));
 }
 
+// Fast, iterative longest-path layering for branching graphs of any size. elk's
+// recursive layouter overflows the stack on a multi-thousand-node DAG (the
+// expanded coding agent), so this is the fallback: y = longest path from a root;
+// within a layer, order by the barycenter of parents' columns to keep parallel
+// branches apart and reduce crossings. O(V+E), no recursion. Assumes nodes are
+// topologically ordered (graphs.json ids ascend; collapse.js preserves it).
+export function layeredPositions(nodes, edges) {
+  const preds = new Map(nodes.map((n) => [n._id, []]));
+  for (const e of edges) {
+    if (preds.has(e.dst)) preds.get(e.dst).push(e.src);
+  }
+  const depth = new Map();
+  for (const n of nodes) {
+    const ps = preds.get(n._id);
+    depth.set(n._id, ps.length ? Math.max(...ps.map((p) => depth.get(p) ?? 0)) + 1 : 0);
+  }
+  const layers = new Map();
+  for (const n of nodes) {
+    const d = depth.get(n._id);
+    if (!layers.has(d)) layers.set(d, []);
+    layers.get(d).push(n._id);
+  }
+  const col = new Map();
+  for (const d of [...layers.keys()].sort((a, b) => a - b)) {
+    const ids = layers.get(d);
+    if (d > 0) {
+      const bary = (id) => {
+        const ps = preds.get(id);
+        return ps.length ? ps.reduce((a, p) => a + (col.get(p) ?? 0), 0) / ps.length : 0;
+      };
+      ids.sort((a, b) => bary(a) - bary(b));
+    }
+    ids.forEach((id, i) => col.set(id, i));
+  }
+  const pos = new Map();
+  for (const n of nodes) {
+    pos.set(n._id, { x: col.get(n._id) * GAP_X, y: depth.get(n._id) * GAP_Y });
+  }
+  return pos;
+}
+
 // Returns { nodes, edges } ready for <ReactFlow>.
 export async function layoutGraph(graph) {
   const gNodes = (graph.nodes || []).map((n) => ({ ...n, _id: String(n.id) }));
@@ -79,9 +120,20 @@ export async function layoutGraph(graph) {
   const byId = new Map(gNodes.map((n) => [n._id, n]));
   const maxF = maxFlops(gNodes);
 
-  const pos = isChain(gNodes, gEdges)
-    ? serpentinePositions(gNodes)
-    : await elkPositions(gNodes, gEdges);
+  let pos;
+  if (isChain(gNodes, gEdges)) {
+    pos = serpentinePositions(gNodes);
+  } else {
+    try {
+      // elk gives the nicest layered layout for small DAGs (spec fan-in,
+      // training branches, the collapsed coding diamond).
+      pos = await elkPositions(gNodes, gEdges);
+    } catch (err) {
+      // elk recurses per layer and overflows on a huge DAG (expanded coding).
+      // Fall back to the iterative longest-path layouter.
+      pos = layeredPositions(gNodes, gEdges);
+    }
+  }
 
   const nodes = gNodes.map((n) => ({
     id: n._id,

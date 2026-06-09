@@ -56,5 +56,5 @@ export const SCENES = [
   { key: "inference", label: "Inference", caption: "Inference (real H100) — greedy decode chain" },
   { key: "training", label: "LoRA training", caption: "LoRA training (stub) — spine + eval branches" },
   { key: "spec", label: "Speculative decoding", caption: "Speculative decoding (real H100) — drafts fan into verify" },
-  { key: "coding", label: "Coding agent", caption: "Coding agent (stub) — prefill (prompt / tool output) → decode chain" },
+  { key: "coding", label: "Coding agent", caption: "Coding agent (stub) — parallel reads + parallel codegen; one node = one forward pass (collapsed)" },
 ];

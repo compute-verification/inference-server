@@ -1,0 +1,57 @@
+import { describe, it, expect } from "vitest";
+import { layeredPositions } from "./layout.js";
+
+// The longest-path fallback used for big branching graphs (where elk overflows).
+describe("layeredPositions", () => {
+  function nodes(ids) {
+    return ids.map((id) => ({ _id: String(id) }));
+  }
+
+  it("places a chain in a single column, increasing depth", () => {
+    const ns = nodes([0, 1, 2]);
+    const es = [{ src: "0", dst: "1" }, { src: "1", dst: "2" }];
+    const pos = layeredPositions(ns, es);
+    expect(pos.get("0").x).toBe(pos.get("1").x);
+    expect(pos.get("2").x).toBe(pos.get("0").x);
+    expect(pos.get("1").y).toBeGreaterThan(pos.get("0").y);
+    expect(pos.get("2").y).toBeGreaterThan(pos.get("1").y);
+  });
+
+  it("places parallel branches side by side at the same depth", () => {
+    // 0 -> {1, 2} -> 3  (a diamond)
+    const ns = nodes([0, 1, 2, 3]);
+    const es = [
+      { src: "0", dst: "1" }, { src: "0", dst: "2" },
+      { src: "1", dst: "3" }, { src: "2", dst: "3" },
+    ];
+    const pos = layeredPositions(ns, es);
+    // 1 and 2 are parallel: same y, different x
+    expect(pos.get("1").y).toBe(pos.get("2").y);
+    expect(pos.get("1").x).not.toBe(pos.get("2").x);
+    // the merge sits below both
+    expect(pos.get("3").y).toBeGreaterThan(pos.get("1").y);
+  });
+
+  it("uses the longest path for depth at a fan-in of unequal branch lengths", () => {
+    // 0 -> 1 -> 2 -> 4 ; 0 -> 3 -> 4   (one branch length 2, other length 1)
+    const ns = nodes([0, 1, 2, 3, 4]);
+    const es = [
+      { src: "0", dst: "1" }, { src: "1", dst: "2" }, { src: "2", dst: "4" },
+      { src: "0", dst: "3" }, { src: "3", dst: "4" },
+    ];
+    const pos = layeredPositions(ns, es);
+    // node 4's depth follows the LONGER branch (0->1->2->4 = depth 3)
+    expect(pos.get("4").y).toBeGreaterThan(pos.get("2").y);
+    expect(pos.get("3").y).toBeLessThan(pos.get("4").y);
+  });
+
+  it("places every node", () => {
+    const ns = nodes([0, 1, 2, 3]);
+    const es = [{ src: "0", dst: "1" }, { src: "0", dst: "2" }, { src: "1", dst: "3" }, { src: "2", dst: "3" }];
+    const pos = layeredPositions(ns, es);
+    for (const n of ns) {
+      expect(Number.isFinite(pos.get(n._id).x)).toBe(true);
+      expect(Number.isFinite(pos.get(n._id).y)).toBe(true);
+    }
+  });
+});
