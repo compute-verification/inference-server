@@ -1,16 +1,16 @@
-"""Build all four canonical task graphs and bake them into the viz.
+"""Build all four canonical task graphs and emit them as JSON for the viz.
 
 Each scenario's tracer -> a canonical trace -> build_graph -> a Graph dict.
-We collect {inference, spec, training, coding} and (a) write them to
-traces/graphs.json and (b) bake them into the `const DATA = ...;` line of
-demos/proof-compare/viz/index.html.
+We collect {inference, spec, training, coding} and write them to BOTH
+traces/graphs.json (the canonical artifact) and viz/public/graphs.json, which the
+React Flow app (demos/proof-compare/viz) fetches at runtime. No HTML is baked --
+the frontend is a real Vite app now, not a single hand-edited file.
 
 Run:  python3 demos/proof-compare/build_all.py
 """
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -28,7 +28,7 @@ import training as t_train
 import coding as t_code
 
 TRACES = HERE / "traces"
-VIZ = HERE / "viz" / "index.html"
+VIZ_PUBLIC = HERE / "viz" / "public"
 
 
 def _inference_trace() -> dict:
@@ -57,24 +57,23 @@ def _training_trace() -> dict:
 
 
 def _coding_trace() -> dict:
-    # Hand-captured trace of the real p-less implementation run (STUB: tokens
-    # are estimates; see demos/coding-agent). attended=0 until Task 13.
+    # Forward-pass-granular trace of the real p-less implementation run (STUB:
+    # token counts are estimates; see demos/coding-agent). Each turn = one
+    # prefill (prompt or tool output) + one decode per generated token; tool
+    # calls (search/fetch/run-tests) are not forward passes, so they appear only
+    # as the `via` tag + token count of the prefill that ingests their output.
     return t_code.trace_coding_stub(
         "agent",
-        prompt={"tokens": 40, "label": "prompt",
-                "payload": {"text": "Summarize a paper that just came out, then implement it"}},
-        retrievals=[
-            {"kind": "search", "tokens": 620, "label": "search papers"},
-            {"kind": "search", "tokens": 640, "label": "search truncation samplers"},
-            {"kind": "fetch", "tokens": 1100, "label": "fetch arXiv abstract"},
-            {"kind": "fetch", "tokens": 6300, "label": "fetch arXiv full"},
-            {"kind": "fetch", "tokens": 1800, "label": "fetch repo"},
-            {"kind": "fetch", "tokens": 1500, "label": "fetch reference code"},
+        prompt="Summarize a paper that just came out, then implement it",
+        turns=[
+            {"role": "reason",  "prefill": 40,   "gen": 6,  "label": "read prompt"},
+            {"role": "triage",  "prefill": 1260, "gen": 5,  "via": "search: recent papers", "label": "triage search hits"},
+            {"role": "read",    "prefill": 6300, "gen": 8,  "via": "fetch: arXiv full text", "label": "read paper"},
+            {"role": "plan",    "prefill": 1800, "gen": 10, "via": "fetch: reference repo", "label": "extract p-less algorithm"},
+            {"role": "codegen", "prefill": 0,    "gen": 14, "label": "write p_less.py"},
+            {"role": "codegen", "prefill": 0,    "gen": 14, "label": "write test_p_less.py"},
+            {"role": "test",    "prefill": 400,  "gen": 6,  "via": "run tests", "label": "read output -> 9 passed"},
         ],
-        plan={"tokens": 2900, "label": "extract p-less algorithm"},
-        codegens=[{"tokens": 1200, "label": "write p_less.py"},
-                  {"tokens": 1400, "label": "write test_p_less.py"}],
-        verify={"tokens": 400, "label": "run tests -> 9 passed"},
     )
 
 
@@ -87,23 +86,20 @@ def build_all() -> dict:
     }
 
 
-def bake(html: str, data: dict) -> str:
-    """Replace the `const DATA = ...;` line. lambda avoids \\u escape errors."""
-    line = "const DATA = " + json.dumps(data) + ";"
-    new, n = re.subn(r"const DATA = .*?;(?=\n)", lambda m: line, html, count=1)
-    if n != 1:
-        raise RuntimeError(f"expected exactly one `const DATA = ...;` line, replaced {n}")
-    return new
+def dump(data: dict) -> str:
+    """Canonical JSON for the graphs payload."""
+    return json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n"
 
 
 def main() -> int:
     data = build_all()
+    payload = dump(data)
     TRACES.mkdir(parents=True, exist_ok=True)
-    (TRACES / "graphs.json").write_text(
-        json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n")
-    VIZ.write_text(bake(VIZ.read_text(), data))
+    VIZ_PUBLIC.mkdir(parents=True, exist_ok=True)
+    (TRACES / "graphs.json").write_text(payload)
+    (VIZ_PUBLIC / "graphs.json").write_text(payload)
     counts = {k: len(v["nodes"]) for k, v in data.items()}
-    print(f"baked {counts} into {VIZ}")
+    print(f"wrote {counts} to {TRACES / 'graphs.json'} and {VIZ_PUBLIC / 'graphs.json'}")
     return 0
 
 

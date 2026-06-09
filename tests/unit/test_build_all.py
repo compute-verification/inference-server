@@ -1,4 +1,4 @@
-"""Unit tests for the build/bake script (the bake logic, not SVG)."""
+"""Unit tests for the build script that emits graphs.json for the viz."""
 import json
 import sys
 import unittest
@@ -21,23 +21,22 @@ class TestBuildAll(unittest.TestCase):
             self.assertTrue(g["nodes"], f"{k} has no nodes")
             self.assertIn("edges", g)
 
-    def test_bake_replaces_the_data_line(self):
-        html = "<script>\nconst DATA = {};\nrenderAll();\n</script>\n"
-        baked = build_all.bake(html, {"x": [1, 2]})
-        # the DATA line is replaced and parses back to our object
-        line = [ln for ln in baked.splitlines() if ln.startswith("const DATA = ")][0]
-        obj = json.loads(line[len("const DATA = "):-1])
-        self.assertEqual(obj, {"x": [1, 2]})
-        self.assertIn("renderAll();", baked)  # rest of the file untouched
+    def test_coding_nodes_are_all_forward_passes(self):
+        # The coding agent must be at forward-pass granularity (prefill/decode),
+        # not agent-action nodes — guard against regressing the abstraction.
+        data = build_all.build_all()
+        kinds = {n["kind"] for n in data["coding"]["nodes"]}
+        self.assertTrue(kinds <= {"prefill", "decode"}, f"unexpected coding kinds: {kinds}")
 
-    def test_bake_survives_unicode_escapes_in_json(self):
-        # The real footgun: JSON with \u sequences must not break re.sub.
-        html = "const DATA = {};\n"
-        build_all.bake(html, {"tok": "café ⟂"})  # must not raise
+    def test_dump_is_canonical_json_round_trip(self):
+        data = build_all.build_all()
+        payload = build_all.dump(data)
+        self.assertTrue(payload.endswith("\n"))
+        self.assertEqual(json.loads(payload), data)
 
-    def test_bake_requires_exactly_one_data_line(self):
-        with self.assertRaises(RuntimeError):
-            build_all.bake("no data line here\n", {"x": 1})
+    def test_dump_survives_unicode_in_payloads(self):
+        # token text / prompts can contain non-ASCII; dump must not choke.
+        build_all.dump({"x": {"nodes": [{"label": "café ⟂"}], "edges": []}})
 
 
 if __name__ == "__main__":
