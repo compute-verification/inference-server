@@ -14,11 +14,13 @@ from dataclasses import asdict, dataclass, field
 from modules.proof_server import flops as F
 
 # The fixed node-kind vocabulary. Every event.kind must be one of these.
+# Each kind is exactly one forward pass. The coding agent reuses prefill/decode
+# (it is just inference with periodic tool-output prefills) — it has no kinds of
+# its own; tool calls run no forward pass and are therefore not nodes.
 KINDS = (
-    "prefill", "decode",                    # inference
+    "prefill", "decode",                    # inference (and the coding agent)
     "train_step", "eval_prefill", "eval_decode",  # training
     "draft", "verify",                      # speculative decoding
-    "prompt", "search", "fetch", "plan", "codegen", "test",  # coding agent
 )
 
 
