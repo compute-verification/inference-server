@@ -52,7 +52,6 @@ class TestCodingAgentHarnessMock(unittest.TestCase):
         # orient + 4 reads + 3 plans + synth + 2 codegen + verdict = 12 calls
         self.assertEqual(len(calls), 12)
         reads = [c for c in calls if c["role"] == "read"]
-        plans = [c for c in calls if c["role"] == "plan" and "candidate" not in c["phase"]]
         self.assertEqual(len(reads), 4)
         # every plan candidate fans in from ALL four reads
         for c in calls:

@@ -2,8 +2,12 @@
 
 The model is behind ``next_token`` so this is unit-testable on CPU; the real GPU
 model is plugged in by demos/proof-compare/capture/run_inference.py (Task 11).
-One prefill event (reads the whole prompt) then one decode event per generated
-token, chained.
+
+One node = one REAL forward pass. HF-style generation runs exactly g forwards
+to emit g tokens: the prefill's last position produces the first generated
+token, and each decode pass consumes the previous token and produces the next.
+No pass ever consumes the final token (generation stops first), so a run of g
+tokens is 1 prefill + (g-1) decodes -- each node carries the token it PRODUCED.
 """
 from __future__ import annotations
 
@@ -29,18 +33,24 @@ def trace_inference(prompt_ids, next_token, model_key, shape_config, max_tokens)
 
     ctx = list(prompt_ids)
     p = len(ctx)
+    payload = {"prompt_len": p}
+    if max_tokens > 0:
+        t = next_token(ctx)          # produced by the prefill's last position
+        ctx.append(t)
+        payload["token_id"] = t
     # Prefill: read all P prompt tokens in one pass; causal attention triangle.
     prev = tr.event(
         "prefill", model=model_key, tokens=p, attended=p * (p + 1) // 2,
-        logits=1, label="prefill", payload={"prompt_len": p},
+        logits=1, label="prefill", payload=payload,
     )
 
-    for _ in range(max_tokens):
+    for _ in range(max_tokens - 1):
+        # This pass consumes the newest token, attending the whole context.
+        attended = len(ctx)
         t = next_token(ctx)
         ctx.append(t)
-        # Decode: one new token attending over the whole context so far.
         prev = tr.event(
-            "decode", model=model_key, tokens=1, attended=len(ctx),
+            "decode", model=model_key, tokens=1, attended=attended,
             logits=1, inputs=[prev], label="decode", payload={"token_id": t},
         )
 

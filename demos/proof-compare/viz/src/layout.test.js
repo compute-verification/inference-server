@@ -1,5 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { layeredPositions } from "./layout.js";
+import { layeredPositions, layoutStrategy, ELK_MAX_NODES } from "./layout.js";
+
+// Which layouter a graph gets. The big-DAG cutoff exists because elk grinds
+// for minutes (blocking the tab) on multi-thousand-node graphs.
+describe("layoutStrategy", () => {
+  it("routes chains to the serpentine grid", () => {
+    const ns = [{ _id: "0" }, { _id: "1" }];
+    expect(layoutStrategy(ns, [{ src: "0", dst: "1" }])).toBe("serpentine");
+  });
+
+  it("routes small branching DAGs to elk", () => {
+    const ns = [{ _id: "0" }, { _id: "1" }, { _id: "2" }];
+    const es = [{ src: "0", dst: "1" }, { src: "0", dst: "2" }];
+    expect(layoutStrategy(ns, es)).toBe("elk");
+  });
+
+  it("routes big branching DAGs straight to the iterative layouter", () => {
+    const n = ELK_MAX_NODES + 1;
+    const ns = Array.from({ length: n }, (_, i) => ({ _id: String(i) }));
+    // a fan-out at the root makes it non-chain
+    const es = [{ src: "0", dst: "1" }, { src: "0", dst: "2" }];
+    for (let i = 2; i < n - 1; i++) es.push({ src: String(i), dst: String(i + 1) });
+    expect(layoutStrategy(ns, es)).toBe("layered");
+  });
+});
 
 // The longest-path fallback used for big branching graphs (where elk overflows).
 describe("layeredPositions", () => {

@@ -82,7 +82,10 @@ class RealLM:
                 **ids, do_sample=False, max_new_tokens=max_new,
                 pad_token_id=self.tok.eos_token_id)
         gen_ids = out[0][p:]
-        # every generated id (incl. the final eos) is a real forward pass
+        # raw generated-token count g. NOTE: generate ran exactly g forwards
+        # for these g tokens (the prefill's last position produced the first;
+        # no pass consumes the final token) -- the tracer renders a call as
+        # 1 prefill + (g-1) decode passes accordingly.
         return p, len(gen_ids), self.tok.decode(gen_ids, skip_special_tokens=True)
 
 
@@ -162,8 +165,8 @@ class Agent:
         self.lm = lm
         self.calls = []
 
-    def call(self, phase, role, parents, user, via=None):
-        p, g, text = self.lm.generate(SYSTEM, user, MAX_NEW[role])
+    def call(self, phase, role, parents, user, via=None, max_new=None):
+        p, g, text = self.lm.generate(SYSTEM, user, max_new or MAX_NEW[role])
         rec = {"id": len(self.calls), "phase": phase, "role": role,
                "parents": list(parents), "prompt_tokens": p, "gen_tokens": g,
                "text": text}
@@ -178,7 +181,7 @@ class Agent:
 # ----------------------------------------------------------------- tool layer
 
 def extract_blocks(text: str) -> list[str]:
-    return re.findall(r"```(?:python)?\n(.*?)```", text, flags=re.DOTALL)
+    return re.findall(r"```(?:python|py)?[ \t]*\n(.*?)```", text, flags=re.DOTALL)
 
 
 FILE_MARK = re.compile(r"^#\s*file:\s*(\S+)\s*$", re.MULTILINE)
@@ -208,15 +211,22 @@ def write_named_blocks(text: str, rundir: Path, default_name: str | None) -> lis
     3. if still nothing and default_name is set: the whole text as raw code.
     """
     written = []
+    default_used = False
     for block in extract_blocks(text):
         name = default_name
         m = re.match(r"#\s*file:\s*(\S+)\s*\n", block)
         if m:
             name = m.group(1)
             block = block[m.end():]
+        elif default_used:
+            # only the FIRST unnamed block goes to default_name: a disobedient
+            # "code + usage example" reply must not clobber the implementation.
+            continue
         if name and re.fullmatch(r"[\w.]+\.py", name):
             (rundir / name).write_text(block.rstrip() + "\n")
             written.append(name)
+            if not m:
+                default_used = True
     if not written:
         for name, body in split_file_sections(text):
             if re.fullmatch(r"[\w.]+\.py", name):
@@ -230,11 +240,19 @@ def write_named_blocks(text: str, rundir: Path, default_name: str | None) -> lis
 
 
 def run_tests(rundir: Path) -> tuple[bool, str]:
-    proc = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-v"],
-        cwd=rundir, capture_output=True, text=True, timeout=120)
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-v"],
+            cwd=rundir, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired as e:
+        # an LLM-written infinite loop must not kill the (paid GPU) capture
+        def _s(x):  # TimeoutExpired captures are bytes even with text=True
+            return x.decode(errors="replace") if isinstance(x, (bytes, bytearray)) else (x or "")
+        out = (_s(e.stdout) + _s(e.stderr))[-OUTPUT_TAIL:]
+        return False, "TIMEOUT after 120s running unittest discover\n" + out
     out = (proc.stdout + proc.stderr)[-OUTPUT_TAIL:]
-    return proc.returncode == 0, out
+    # "Ran 0 tests" exits 0 before Python 3.12 -- a vacuous green is not green.
+    return proc.returncode == 0 and "Ran 0 tests" not in out, out
 
 
 # ------------------------------------------------------------------- scaffold
@@ -279,7 +297,8 @@ def run_agent(lm) -> dict:
     synth, final_plan = ag.call(
         "synthesize plan", "plan", plans,
         f"{TASK}\n\n" + "\n\n".join(plan_texts) +
-        "\n\nSynthesize the single best plan from these candidates. Plan only -- no code.")
+        "\n\nSynthesize the single best plan from these candidates. Plan only -- no code.",
+        max_new=MAX_NEW["synth"])
 
     # 5. write source and test in parallel
     codegen = []

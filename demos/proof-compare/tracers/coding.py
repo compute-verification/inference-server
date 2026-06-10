@@ -17,11 +17,15 @@ so the graph is a DAG of prefill/decode chains that fan out and fan in:
            ─▶ (write src ‖ write test) ─▶ test verdict [─▶ fix ─▶ re-test]
 
 Each call is an independent context (the scaffold assembles a fresh prompt per
-call), so its prefill attends its own causal triangle p·(p+1)/2 and decode i
-attends p+i — no shared-KV assumption. The dataflow edges (``parents``) carry
-the agent structure. Tool calls (file reads, running the tests) execute no
-model forward pass, so they are not nodes; their output is the next call's
-prompt (tagged ``payload.via``).
+call), so its prefill attends its own causal triangle p·(p+1)/2 — no shared-KV
+assumption. One node = one REAL forward pass: generation runs exactly g
+forwards to emit g tokens (the prefill's last position produces the first;
+each decode pass consumes the previous token, attending p+i keys, and produces
+the next; no pass ever consumes the final token), so a call is 1 prefill +
+(g−1) decodes. The dataflow edges (``parents``) carry the agent structure.
+Tool calls (file reads, running the tests) execute no model forward pass, so
+they are not nodes; their output is the next call's prompt (tagged
+``payload.via``).
 """
 from __future__ import annotations
 
@@ -54,6 +58,8 @@ def trace_coding_real(capture: dict) -> dict:
     tail: dict[int, int] = {}  # call id -> last node id of that call
     for call in calls:
         cid = int(call["id"])
+        if cid in tail:
+            raise ValueError(f"duplicate call id {cid}")
         for par in call["parents"]:
             if par not in tail:
                 raise ValueError(f"call {cid} references unknown/later parent {par}")
@@ -63,21 +69,24 @@ def trace_coding_real(capture: dict) -> dict:
 
         phase = call["phase"]
         role = call["role"]
+        # g recorded tokens = g real passes: prefill + (g-1) decode passes.
+        n_dec = max(int(call["gen_tokens"]) - 1, 0)
         payload = {"role": role, "phase": phase}
         if call.get("via"):
             payload["via"] = call["via"]
         if cid == 0:
             payload["prompt"] = capture["prompt"]
+        if n_dec == 0 and call.get("text"):
+            payload["out"] = call["text"][:PREVIEW_CHARS]
 
         prev = tr.event(
             "prefill", model=model_key, tokens=p, attended=p * (p + 1) // 2,
             logits=1, inputs=[tail[par] for par in call["parents"]],
             label=phase, payload=payload,
         )
-        g = int(call["gen_tokens"])
-        for i in range(1, g + 1):
+        for i in range(1, n_dec + 1):
             dp = {"role": role, "phase": phase}
-            if i == g and call.get("text"):
+            if i == n_dec and call.get("text"):
                 dp["out"] = call["text"][:PREVIEW_CHARS]
             prev = tr.event(
                 "decode", model=model_key, tokens=1, attended=p + i, logits=1,

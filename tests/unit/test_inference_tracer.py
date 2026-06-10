@@ -21,10 +21,17 @@ def _trace(max_tokens=4, prompt_ids=(1, 2, 3)):
 
 
 class TestInferenceTracer(unittest.TestCase):
-    def test_one_prefill_then_n_decodes(self):
+    def test_n_tokens_is_n_forward_passes(self):
+        # generate runs exactly g forwards for g tokens: the prefill produces
+        # the first, then g-1 decode passes -- no phantom final pass.
         evs = _trace(max_tokens=4)["events"]
         kinds = [e["kind"] for e in evs]
-        self.assertEqual(kinds, ["prefill", "decode", "decode", "decode", "decode"])
+        self.assertEqual(kinds, ["prefill", "decode", "decode", "decode"])
+
+    def test_each_node_carries_the_token_it_produced(self):
+        evs = _trace(max_tokens=3, prompt_ids=(1, 2, 3))["events"]
+        # mock_next_token emits last+1: 4, then 5, then 6.
+        self.assertEqual([e["payload"]["token_id"] for e in evs], [4, 5, 6])
 
     def test_decode_chain_is_linked(self):
         evs = _trace(max_tokens=3)["events"]
@@ -37,9 +44,10 @@ class TestInferenceTracer(unittest.TestCase):
         self.assertEqual(evs[0]["attended"], 5 * 6 // 2)
 
     def test_decode_attended_grows_each_step(self):
+        # decode pass j consumes token j, attending p+j keys.
         evs = _trace(max_tokens=3, prompt_ids=(1, 2, 3))["events"]
         decodes = [e for e in evs if e["kind"] == "decode"]
-        self.assertEqual([e["attended"] for e in decodes], [4, 5, 6])
+        self.assertEqual([e["attended"] for e in decodes], [4, 5])
 
     def test_prefill_costs_more_than_a_decode_step(self):
         # The spec's actual claim: prefill (reads P tokens) > one decode (1 token).
@@ -53,6 +61,12 @@ class TestInferenceTracer(unittest.TestCase):
     def test_zero_max_tokens_is_just_prefill(self):
         evs = _trace(max_tokens=0)["events"]
         self.assertEqual([e["kind"] for e in evs], ["prefill"])
+        self.assertNotIn("token_id", evs[0]["payload"])  # nothing was produced
+
+    def test_one_token_is_just_the_prefill_pass(self):
+        evs = _trace(max_tokens=1)["events"]
+        self.assertEqual([e["kind"] for e in evs], ["prefill"])
+        self.assertIn("token_id", evs[0]["payload"])
 
 
 if __name__ == "__main__":

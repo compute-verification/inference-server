@@ -44,21 +44,22 @@ def main() -> int:
     prompt_ids = tok.encode(PROMPT)
     trace = trace_inference(prompt_ids, next_token, MODEL_ID, cfg, MAX_TOKENS)
 
-    # decode token text into payloads for the viz tooltip
+    # decode token text into payloads for the viz tooltip. Every node carries
+    # the token its forward pass PRODUCED -- including the prefill, whose last
+    # position produces the first generated token.
     for ev in trace["events"]:
+        text = tok.decode([ev["payload"]["token_id"]])
+        ev["payload"]["token"] = text
         if ev["kind"] == "prefill":
             ev["payload"]["prompt"] = PROMPT
             ev["label"] = "prefill"
-        elif ev["kind"] == "decode":
-            text = tok.decode([ev["payload"]["token_id"]])
-            ev["payload"]["token"] = text
+        else:
             ev["label"] = text.strip() or "·"
 
     out = REPO_ROOT / "demos" / "proof-compare" / "traces" / "inference.real.json"
     out.write_text(json.dumps(trace))
 
-    decoded = tok.decode([e["payload"]["token_id"] for e in trace["events"]
-                          if e["kind"] == "decode"])
+    decoded = tok.decode([e["payload"]["token_id"] for e in trace["events"]])
     print(f"PROMPT : {PROMPT!r}")
     print(f"OUTPUT : {decoded!r}")
     print(f"model  : {MODEL_ID}  ({cfg['num_hidden_layers']}L d={cfg['hidden_size']})")

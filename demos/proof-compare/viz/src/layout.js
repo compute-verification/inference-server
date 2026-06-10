@@ -117,6 +117,18 @@ export function layeredPositions(nodes, edges) {
   return pos;
 }
 
+// Which positioning strategy a graph gets (pure -> unit-tested):
+//   * chains (in/out degree <= 1) -> O(n) serpentine grid;
+//   * big branching DAGs -> iterative longest-path (elk on a multi-thousand-
+//     node DAG either grinds for minutes blocking the main thread, or
+//     overflows the stack -- skip it outright);
+//   * small branching DAGs -> elk (with the iterative layouter as a fallback).
+export function layoutStrategy(nodes, edges) {
+  if (isChain(nodes, edges)) return "serpentine";
+  if (nodes.length > ELK_MAX_NODES) return "layered";
+  return "elk";
+}
+
 // Returns { nodes, edges } ready for <ReactFlow>.
 export async function layoutGraph(graph) {
   const gNodes = (graph.nodes || []).map((n) => ({ ...n, _id: String(n.id) }));
@@ -125,11 +137,10 @@ export async function layoutGraph(graph) {
   const maxF = maxFlops(gNodes);
 
   let pos;
-  if (isChain(gNodes, gEdges)) {
+  const strategy = layoutStrategy(gNodes, gEdges);
+  if (strategy === "serpentine") {
     pos = serpentinePositions(gNodes);
-  } else if (gNodes.length > ELK_MAX_NODES) {
-    // elk on a multi-thousand-node DAG either grinds for minutes (blocking
-    // the main thread) or overflows the stack -- skip it outright.
+  } else if (strategy === "layered") {
     pos = layeredPositions(gNodes, gEdges);
   } else {
     try {

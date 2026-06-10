@@ -60,8 +60,10 @@ class TestCodingTracer(unittest.TestCase):
     def test_every_node_is_a_forward_pass(self):
         self.assertTrue(all(e["kind"] in ("prefill", "decode") for e in self.evs))
 
-    def test_node_count_is_one_prefill_plus_gen_per_call(self):
-        want = sum(1 + c["gen_tokens"] for c in self.cap["calls"])
+    def test_node_count_is_real_forward_passes(self):
+        # g recorded tokens = g real passes per call (the prefill's last
+        # position produces the first token; no pass consumes the final one).
+        want = sum(max(c["gen_tokens"], 1) for c in self.cap["calls"])
         self.assertEqual(len(self.evs), want)
 
     def test_prefill_attends_its_own_causal_triangle(self):
@@ -73,10 +75,12 @@ class TestCodingTracer(unittest.TestCase):
         self.assertEqual(paper["attended"], 600 * 601 // 2)
 
     def test_decodes_emit_one_token_attending_growing_context(self):
+        # g=3 -> 2 decode passes (the prefill produced the first token);
+        # pass j consumes token j, attending p+j keys.
         decodes = [e for e in self.evs if e["kind"] == "decode"
                    and e["payload"]["phase"] == "read paper.md"]
-        self.assertEqual([d["tokens"] for d in decodes], [1, 1, 1])
-        self.assertEqual([d["attended"] for d in decodes], [601, 602, 603])
+        self.assertEqual([d["tokens"] for d in decodes], [1, 1])
+        self.assertEqual([d["attended"] for d in decodes], [601, 602])
 
     def test_is_a_dag_with_inputs_before_id(self):
         for e in self.evs:
@@ -144,6 +148,25 @@ class TestCodingTracer(unittest.TestCase):
         ])
         with self.assertRaises(ValueError):
             coding.trace_coding_real(bad)
+
+    def test_duplicate_call_id_rejected(self):
+        bad = _capture(calls=[
+            {"id": 0, "phase": "a", "role": "reason", "parents": [],
+             "prompt_tokens": 10, "gen_tokens": 2, "text": ""},
+            {"id": 0, "phase": "b", "role": "reason", "parents": [],
+             "prompt_tokens": 10, "gen_tokens": 2, "text": ""},
+        ])
+        with self.assertRaises(ValueError):
+            coding.trace_coding_real(bad)
+
+    def test_single_token_call_is_prefill_only_with_preview(self):
+        cap = _capture(calls=[
+            {"id": 0, "phase": "a", "role": "reason", "parents": [],
+             "prompt_tokens": 10, "gen_tokens": 1, "text": "yes"},
+        ])
+        evs = coding.trace_coding_real(cap)["events"]
+        self.assertEqual([e["kind"] for e in evs], ["prefill"])
+        self.assertEqual(evs[0]["payload"]["out"], "yes")
 
 
 if __name__ == "__main__":

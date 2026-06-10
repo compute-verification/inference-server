@@ -20,9 +20,7 @@ for p in (REPO_ROOT, HERE / "tracers"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from modules.proof_server import flops as F
 from modules.proof_server.graph import build_graph
-import inference as t_inf
 import specdecode as t_spec
 import training as t_train
 import coding as t_code
@@ -32,17 +30,9 @@ VIZ_PUBLIC = HERE / "viz" / "public"
 
 
 def _inference_trace() -> dict:
-    """Real captured trace if present (Task 11), else a small labelled mock."""
-    real = TRACES / "inference.real.json"
-    if real.exists():
-        return json.loads(real.read_text())
-    # Placeholder until the GPU run: a short mock decode (clearly not real).
-    tr = t_inf.trace_inference(
-        prompt_ids=list(range(6)), next_token=t_inf.mock_next_token,
-        model_key="Qwen/Qwen3-1.7B",
-        shape_config=F.KNOWN_SHAPES["Qwen/Qwen3-1.7B"], max_tokens=8)
-    tr["meta"] = {"real": False, "note": "mock placeholder; replaced by Task 11 GPU run"}
-    return tr
+    """Real captured H100 trace. No mock fallback: the viz labels every tab
+    real, so a missing capture must FAIL the build, not silently degrade."""
+    return json.loads((TRACES / "inference.real.json").read_text())
 
 
 def _spec_trace() -> dict:

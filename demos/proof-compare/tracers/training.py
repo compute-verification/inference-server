@@ -61,17 +61,21 @@ def trace_training_real(capture: dict) -> dict:
 
         for ev in evals_after.get(i + 1, []):
             p = int(ev["prompt_tokens"])
+            # g generated tokens = g real passes: the eval prefill's last
+            # position produces the first token, then g-1 decode passes.
+            n_dec = max(int(ev["gen_tokens"]) - 1, 0)
+            payload = {"prompt": ev["prompt"], "after_step": i + 1,
+                       "loss": st["loss"]}
+            if n_dec == 0 and ev.get("text"):
+                payload["out"] = ev["text"][:PREVIEW_CHARS]
             prev = tr.event(
                 "eval_prefill", model=model_key, tokens=p,
                 attended=p * (p + 1) // 2, logits=1, inputs=[step_id],
-                label=f"eval@{i + 1}",
-                payload={"prompt": ev["prompt"], "after_step": i + 1,
-                         "loss": st["loss"]},
+                label=f"eval after step {st['step']}", payload=payload,
             )
-            g = int(ev["gen_tokens"])
-            for j in range(1, g + 1):
+            for j in range(1, n_dec + 1):
                 dp = {"phase": "eval", "after_step": i + 1}
-                if j == g and ev.get("text"):
+                if j == n_dec and ev.get("text"):
                     dp["out"] = ev["text"][:PREVIEW_CHARS]
                 prev = tr.event(
                     "eval_decode", model=model_key, tokens=1, attended=p + j,

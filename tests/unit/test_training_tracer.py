@@ -52,8 +52,10 @@ class TestTrainingTracer(unittest.TestCase):
         self.assertEqual(len([e for e in self.evs if e["kind"] == "train_step"]), 4)
 
     def test_each_eval_is_a_flattened_inference(self):
+        # gen_tokens=3 -> 3 real passes: eval_prefill (produces the first
+        # token) + 2 eval_decodes. No phantom final pass.
         self.assertEqual(len([e for e in self.evs if e["kind"] == "eval_prefill"]), 2)
-        self.assertEqual(len([e for e in self.evs if e["kind"] == "eval_decode"]), 6)
+        self.assertEqual(len([e for e in self.evs if e["kind"] == "eval_decode"]), 4)
 
     def test_eval_branches_off_its_train_step(self):
         # eval with after_step=2 hangs off the 2nd train_step (0-indexed step 1).
@@ -79,8 +81,8 @@ class TestTrainingTracer(unittest.TestCase):
         self.assertEqual(step["logits"], 2 * 16)
 
     def test_eval_decode_attends_growing_context(self):
-        decs = [e for e in self.evs if e["kind"] == "eval_decode"][:3]
-        self.assertEqual([d["attended"] for d in decs], [6, 7, 8])
+        decs = [e for e in self.evs if e["kind"] == "eval_decode"][:2]
+        self.assertEqual([d["attended"] for d in decs], [6, 7])
 
     def test_eval_text_recorded_on_last_decode(self):
         first_eval_decs = [e for e in self.evs if e["kind"] == "eval_decode"
