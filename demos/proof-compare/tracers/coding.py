@@ -1,23 +1,27 @@
-"""Coding-agent tracer (STUB) — a DAG of forward passes.
+"""Coding-agent tracer — converts a REAL captured agent run into a DAG of
+forward passes.
 
-Every node is exactly one forward pass — one ``prefill`` (reads a batch of
-tokens) or one ``decode`` (emits one token), the same primitives as inference.
-But a real agent is not a single chain: it issues LLM calls **in parallel**
-(concurrent reads of different sources, concurrent sub-agents writing different
-files), then merges. So the graph is a DAG of forward-pass chains that fan out
-and fan in:
+The GPU harness (demos/proof-compare/capture/run_coding_agent.py) runs an
+actual agent scaffold against a real model and records one entry per LLM call:
+how many prompt tokens it read, how many tokens it generated, and which earlier
+calls' outputs fed its prompt. This tracer renders that capture as canonical
+events where every node is exactly one forward pass — one ``prefill`` (reads
+the call's assembled prompt) or one ``decode`` (emits one token), the same
+primitives as inference.
 
-    reason ─▶ (read paper ‖ read repo) ─▶ plan ─▶ (write src ‖ write test) ─▶ test
+The agent issues independent LLM calls in parallel (concurrent reads of
+different files, concurrent plan candidates, concurrent codegen), then merges —
+so the graph is a DAG of prefill/decode chains that fan out and fan in:
 
-Each branch is its own chain of prefill/decode; a fan-in node (the merge) takes
-all branch tails as inputs. Tool calls (search/fetch/run-tests) run no model
-forward pass, so they are not nodes — their output is the next prefill's tokens
-(tagged ``payload.via``).
+    orient ─▶ (read × N files) ─▶ (plan × K candidates) ─▶ synthesize
+           ─▶ (write src ‖ write test) ─▶ test verdict [─▶ fix ─▶ re-test]
 
-STUB: token counts are estimates from a real "summarize a paper, then implement
-it" run; the parallelism models an agent that dispatches concurrent LLM calls
-(a real pattern), as opposed to a purely sequential agent (which would be one
-chain). The *shape* and FLOPs accounting are correct.
+Each call is an independent context (the scaffold assembles a fresh prompt per
+call), so its prefill attends its own causal triangle p·(p+1)/2 and decode i
+attends p+i — no shared-KV assumption. The dataflow edges (``parents``) carry
+the agent structure. Tool calls (file reads, running the tests) execute no
+model forward pass, so they are not nodes; their output is the next call's
+prompt (tagged ``payload.via``).
 """
 from __future__ import annotations
 
@@ -28,92 +32,57 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from modules.proof_server import flops as F
 from modules.proof_server.tracer import Tracer
 
+PREVIEW_CHARS = 280
 
-def _emit_turn(tr, agent_key, turn, inputs, ctx_in, prompt=None, first=False):
-    """Emit one LLM turn as prefill (optional) + one decode per generated token.
 
-    ``inputs`` are the node ids this turn forks from (a fan-in if more than one).
-    Returns ``(tail_id, ctx_out)`` so callers can chain or merge.
+def trace_coding_real(capture: dict) -> dict:
+    """Canonical trace from a coding-agent capture (see module docstring).
+
+    ``capture["calls"]`` is ordered; each call: ``{id, phase, role, via?,
+    parents, prompt_tokens, gen_tokens, text}``. Parents must be earlier calls.
     """
-    role = turn["role"]
-    # `phase` (the per-turn label, e.g. "write p_less.py") groups a turn's
-    # forward passes together in the viz without merging adjacent same-role turns.
-    phase = turn.get("label") or role
-    p = int(turn.get("prefill", 0))
-    ctx = ctx_in
-    cur_inputs = list(inputs)
-    prev = None
-    if p > 0:
-        # New tokens occupy positions [ctx, ctx+p); each attends to all tokens up
-        # to and including itself -> a causal-triangle difference.
-        attended = (ctx + p) * (ctx + p + 1) // 2 - ctx * (ctx + 1) // 2
-        ctx += p
-        payload = {"role": role, "phase": phase}
-        if first and prompt is not None:
-            payload["prompt"] = prompt
-        if turn.get("via"):
-            payload["via"] = turn["via"]
-        prev = tr.event(
-            "prefill", model=agent_key, tokens=p, attended=attended, logits=1,
-            inputs=cur_inputs, label=phase, payload=payload,
-        )
-        cur_inputs = [prev]
-    for _ in range(int(turn.get("gen", 0))):
-        ctx += 1
-        prev = tr.event(
-            "decode", model=agent_key, tokens=1, attended=ctx, logits=1,
-            inputs=cur_inputs, label=role, payload={"role": role, "phase": phase},
-        )
-        cur_inputs = [prev]
-    if prev is None:
-        raise ValueError(f"turn {phase!r} emitted no forward pass (need prefill or gen)")
-    return prev, ctx
+    calls = capture.get("calls") or []
+    if not calls:
+        raise ValueError("a coding capture needs at least one call")
 
-
-def trace_coding_stub(agent_key, prompt, stages):
-    """Render an agent run as a DAG of prefill/decode forward passes.
-
-    ``prompt`` is the user prompt text (stored in the first prefill's payload).
-    ``stages`` is a list; each element is either:
-
-      * a turn dict (sequential) -- runs after the current frontier::
-            {"role", "prefill", "gen", "via"?, "label"?}
-      * a parallel group -- all sub-turns fork from the current frontier and run
-        concurrently; the next stage fans in from all their tails::
-            {"parallel": [turn, turn, ...]}
-
-    A turn with ``prefill == 0`` is a continuation (forks straight into decodes).
-    """
-    if not stages:
-        raise ValueError("a coding trace needs at least one stage")
-
+    model_key = capture["model"]
     tr = Tracer()
-    tr.add_shape(agent_key, F.shape_for(agent_key))
+    tr.add_shape(model_key, capture["config"])
 
-    frontier = []      # node ids the next stage depends on
-    ctx = 0            # running context length (shared prefix before a fork)
-    first = True
-    for stage in stages:
-        if isinstance(stage, dict) and "parallel" in stage:
-            fork_ctx = ctx
-            tails, growth = [], 0
-            for turn in stage["parallel"]:
-                tail, c = _emit_turn(
-                    tr, agent_key, turn, frontier, fork_ctx, prompt=prompt, first=first)
-                first = False
-                tails.append(tail)
-                growth += c - fork_ctx
-            frontier = tails
-            # the next (merge) turn re-reads every branch: shared prefix once
-            # plus each branch's additions.
-            ctx = fork_ctx + growth
-        else:
-            tail, ctx = _emit_turn(
-                tr, agent_key, stage, frontier, ctx, prompt=prompt, first=first)
-            first = False
-            frontier = [tail]
+    tail: dict[int, int] = {}  # call id -> last node id of that call
+    for call in calls:
+        cid = int(call["id"])
+        for par in call["parents"]:
+            if par not in tail:
+                raise ValueError(f"call {cid} references unknown/later parent {par}")
+        p = int(call["prompt_tokens"])
+        if p <= 0:
+            raise ValueError(f"call {cid} has no prompt tokens (every real call reads a prompt)")
+
+        phase = call["phase"]
+        role = call["role"]
+        payload = {"role": role, "phase": phase}
+        if call.get("via"):
+            payload["via"] = call["via"]
+        if cid == 0:
+            payload["prompt"] = capture["prompt"]
+
+        prev = tr.event(
+            "prefill", model=model_key, tokens=p, attended=p * (p + 1) // 2,
+            logits=1, inputs=[tail[par] for par in call["parents"]],
+            label=phase, payload=payload,
+        )
+        g = int(call["gen_tokens"])
+        for i in range(1, g + 1):
+            dp = {"role": role, "phase": phase}
+            if i == g and call.get("text"):
+                dp["out"] = call["text"][:PREVIEW_CHARS]
+            prev = tr.event(
+                "decode", model=model_key, tokens=1, attended=p + i, logits=1,
+                inputs=[prev], label=role, payload=dp,
+            )
+        tail[cid] = prev
 
     return tr.trace()
