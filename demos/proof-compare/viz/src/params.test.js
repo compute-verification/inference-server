@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { viewParams, SCENES } from "./graph-model.js";
+import { captionFor, viewParams, SCENES } from "./graph-model.js";
 
 // Embedding contract: the 4-node tap demo iframes the viz with
 // ?scene=<key>&src=<graphs url>. Bad input must never break the app.
@@ -23,5 +23,22 @@ describe("viewParams", () => {
       .toBe("../data/protocol-graphs.json");
     expect(viewParams("?scene=coding&src=../api/graph%3Fid%3D7").src)
       .toBe("../api/graph?id=7");
+  });
+});
+
+// A loaded document's _meta.captions override the bundled scene captions —
+// protocol-run graphs have different provenance (e.g. spec rounds are real).
+describe("captionFor", () => {
+  const spec = SCENES.find((s) => s.key === "spec");
+
+  it("uses the document caption when present", () => {
+    const data = { _meta: { captions: { spec: "real rounds" } } };
+    expect(captionFor(data, spec)).toBe("real rounds");
+  });
+
+  it("falls back to the bundled caption", () => {
+    expect(captionFor({}, spec)).toBe(spec.caption);
+    expect(captionFor(null, spec)).toBe(spec.caption);
+    expect(captionFor({ _meta: { captions: {} } }, spec)).toBe(spec.caption);
   });
 });

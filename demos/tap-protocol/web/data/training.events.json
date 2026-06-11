@@ -1,457 +1,457 @@
 {
  "workload": "training",
- "source": "mock",
+ "source": "h100",
  "events": [
   {
    "ts": 0.0,
    "type": "request_sent",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "params": {}
   },
   {
    "ts": 0.0,
    "type": "gateway_signed",
-   "id": 3,
+   "id": 4,
    "workload": "training",
-   "signature_prefix": "08b0aec13957"
+   "signature_prefix": "760bde967ee4"
   },
   {
    "ts": 0.0,
    "type": "tap_received",
-   "id": 3,
+   "id": 4,
    "workload": "training"
   },
   {
    "ts": 0.0,
    "type": "tap_relayed_request",
-   "id": 3,
+   "id": 4,
    "workload": "training"
   },
   {
-   "ts": 0.046,
+   "ts": 6.843,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 3.1,
+    "loss": 5.276586055755615,
     "of": 12,
     "step": 0,
     "type": "step"
    }
   },
   {
-   "ts": 0.048,
+   "ts": 6.958,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 2.7,
+    "loss": 5.048220157623291,
     "of": 12,
     "step": 1,
     "type": "step"
    }
   },
   {
-   "ts": 0.049,
+   "ts": 7.069,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 2.2,
+    "loss": 4.74699068069458,
     "of": 12,
     "step": 2,
     "type": "step"
    }
   },
   {
-   "ts": 0.05,
+   "ts": 7.554,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 3,
-    "text": " (mock eval text)",
+    "text": " that the system can be described by a set of rules that are deterministic, and",
     "type": "eval"
    }
   },
   {
-   "ts": 0.051,
+   "ts": 7.666,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.8,
+    "loss": 4.460843086242676,
     "of": 12,
     "step": 3,
     "type": "step"
    }
   },
   {
-   "ts": 0.053,
+   "ts": 7.776,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.5,
+    "loss": 4.178539276123047,
     "of": 12,
     "step": 4,
     "type": "step"
    }
   },
   {
-   "ts": 0.054,
+   "ts": 7.886,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.2,
+    "loss": 3.941312789916992,
     "of": 12,
     "step": 5,
     "type": "step"
    }
   },
   {
-   "ts": 0.055,
+   "ts": 8.265,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 6,
-    "text": " (mock eval text)",
+    "text": " that the system can be described by a set of rules that are deterministic, and",
     "type": "eval"
    }
   },
   {
-   "ts": 0.056,
+   "ts": 8.376,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.0,
+    "loss": 3.718355417251587,
     "of": 12,
     "step": 6,
     "type": "step"
    }
   },
   {
-   "ts": 0.057,
+   "ts": 8.492,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.85,
+    "loss": 3.527906656265259,
     "of": 12,
     "step": 7,
     "type": "step"
    }
   },
   {
-   "ts": 0.057,
+   "ts": 8.601,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.74,
+    "loss": 3.347231864929199,
     "of": 12,
     "step": 8,
     "type": "step"
    }
   },
   {
-   "ts": 0.058,
+   "ts": 8.987,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 9,
-    "text": " (mock eval text)",
+    "text": " that the system is deterministic, and the same input always produces the same output.",
     "type": "eval"
    }
   },
   {
-   "ts": 0.06,
+   "ts": 9.098,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.66,
+    "loss": 3.164461612701416,
     "of": 12,
     "step": 9,
     "type": "step"
    }
   },
   {
-   "ts": 0.061,
+   "ts": 9.207,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.61,
+    "loss": 2.9702351093292236,
     "of": 12,
     "step": 10,
     "type": "step"
    }
   },
   {
-   "ts": 0.062,
+   "ts": 9.316,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.58,
+    "loss": 2.7863306999206543,
     "of": 12,
     "step": 11,
     "type": "step"
    }
   },
   {
-   "ts": 0.063,
+   "ts": 9.695,
    "type": "host_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 12,
-    "text": " (mock eval text)",
+    "text": " that the same input always produces the same output. This is a fundamental property of",
     "type": "eval"
    }
   },
   {
-   "ts": 0.065,
+   "ts": 10.385,
    "type": "host_completed",
-   "id": 3,
+   "id": 4,
    "workload": "training",
-   "capture_digest": "sha256:103d5d56a9734d14e30c987d8dfd47589e5ede51b880711f6ca29c13021167f0",
-   "output_sha256": "sha256:103d5d56a9734d14e30c987d8dfd47589e5ede51b880711f6ca29c13021167f0",
+   "capture_digest": "sha256:dc8af299ad254385147712f92e1377d715e4037f38290a06368473abbd7f46ed",
+   "output_sha256": "sha256:dc8af299ad254385147712f92e1377d715e4037f38290a06368473abbd7f46ed",
    "summary": {
     "steps": 12,
-    "first_loss": 3.1,
-    "final_loss": 0.58,
+    "first_loss": 5.276586055755615,
+    "final_loss": 2.7863306999206543,
     "evals": 4,
-    "last_eval": " (mock eval text)"
+    "last_eval": " that the same input always produces the same output. This is a fundamental property of"
    }
   },
   {
-   "ts": 0.065,
+   "ts": 10.385,
    "type": "tap_relayed_response",
-   "id": 3,
+   "id": 4,
    "workload": "training"
   },
   {
-   "ts": 0.065,
+   "ts": 10.386,
    "type": "client_received",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "summary": {
     "steps": 12,
-    "first_loss": 3.1,
-    "final_loss": 0.58,
+    "first_loss": 5.276586055755615,
+    "final_loss": 2.7863306999206543,
     "evals": 4,
-    "last_eval": " (mock eval text)"
+    "last_eval": " that the same input always produces the same output. This is a fundamental property of"
    }
   },
   {
-   "ts": 0.065,
+   "ts": 10.386,
    "type": "tap_verify_started",
-   "id": 3,
+   "id": 4,
    "workload": "training"
   },
   {
-   "ts": 0.118,
+   "ts": 17.172,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 3.1,
+    "loss": 5.276586055755615,
     "of": 12,
     "step": 0,
     "type": "step"
    }
   },
   {
-   "ts": 0.12,
+   "ts": 17.255,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 2.7,
+    "loss": 5.048220157623291,
     "of": 12,
     "step": 1,
     "type": "step"
    }
   },
   {
-   "ts": 0.121,
+   "ts": 17.332,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 2.2,
+    "loss": 4.74699068069458,
     "of": 12,
     "step": 2,
     "type": "step"
    }
   },
   {
-   "ts": 0.122,
+   "ts": 17.821,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 3,
-    "text": " (mock eval text)",
+    "text": " that the system can be described by a set of rules that are deterministic, and",
     "type": "eval"
    }
   },
   {
-   "ts": 0.123,
+   "ts": 17.906,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.8,
+    "loss": 4.460843086242676,
     "of": 12,
     "step": 3,
     "type": "step"
    }
   },
   {
-   "ts": 0.124,
+   "ts": 18.004,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.5,
+    "loss": 4.178539276123047,
     "of": 12,
     "step": 4,
     "type": "step"
    }
   },
   {
-   "ts": 0.125,
+   "ts": 18.086,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.2,
+    "loss": 3.941312789916992,
     "of": 12,
     "step": 5,
     "type": "step"
    }
   },
   {
-   "ts": 0.125,
+   "ts": 18.494,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 6,
-    "text": " (mock eval text)",
+    "text": " that the system can be described by a set of rules that are deterministic, and",
     "type": "eval"
    }
   },
   {
-   "ts": 0.126,
+   "ts": 18.573,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 1.0,
+    "loss": 3.718355417251587,
     "of": 12,
     "step": 6,
     "type": "step"
    }
   },
   {
-   "ts": 0.127,
+   "ts": 18.65,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.85,
+    "loss": 3.527906656265259,
     "of": 12,
     "step": 7,
     "type": "step"
    }
   },
   {
-   "ts": 0.128,
+   "ts": 18.728,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.74,
+    "loss": 3.347231864929199,
     "of": 12,
     "step": 8,
     "type": "step"
    }
   },
   {
-   "ts": 0.129,
+   "ts": 19.115,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 9,
-    "text": " (mock eval text)",
+    "text": " that the system is deterministic, and the same input always produces the same output.",
     "type": "eval"
    }
   },
   {
-   "ts": 0.13,
+   "ts": 19.195,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.66,
+    "loss": 3.164461612701416,
     "of": 12,
     "step": 9,
     "type": "step"
    }
   },
   {
-   "ts": 0.131,
+   "ts": 19.274,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.61,
+    "loss": 2.9702351093292236,
     "of": 12,
     "step": 10,
     "type": "step"
    }
   },
   {
-   "ts": 0.132,
+   "ts": 19.354,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
-    "loss": 0.58,
+    "loss": 2.7863306999206543,
     "of": 12,
     "step": 11,
     "type": "step"
    }
   },
   {
-   "ts": 0.133,
+   "ts": 19.759,
    "type": "recomp_progress",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "progress": {
     "after_step": 12,
-    "text": " (mock eval text)",
+    "text": " that the same input always produces the same output. This is a fundamental property of",
     "type": "eval"
    }
   },
   {
-   "ts": 0.134,
+   "ts": 20.46,
    "type": "recomp_verified",
-   "id": 3,
+   "id": 4,
    "workload": "training",
    "is_verified": true,
-   "expected_sha256": "sha256:103d5d56a9734d14e30c987d8dfd47589e5ede51b880711f6ca29c13021167f0",
-   "actual_sha256": "sha256:103d5d56a9734d14e30c987d8dfd47589e5ede51b880711f6ca29c13021167f0",
+   "expected_sha256": "sha256:dc8af299ad254385147712f92e1377d715e4037f38290a06368473abbd7f46ed",
+   "actual_sha256": "sha256:dc8af299ad254385147712f92e1377d715e4037f38290a06368473abbd7f46ed",
    "reason": null
   }
  ]

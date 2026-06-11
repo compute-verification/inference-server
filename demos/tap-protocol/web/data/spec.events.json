@@ -1,11 +1,11 @@
 {
  "workload": "spec",
- "source": "mock",
+ "source": "h100",
  "events": [
   {
    "ts": 0.0,
    "type": "request_sent",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "params": {
     "prompt": "The key idea behind bitwise-deterministic inference is",
@@ -16,30 +16,30 @@
   {
    "ts": 0.0,
    "type": "gateway_signed",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
-   "signature_prefix": "7067913fb420"
+   "signature_prefix": "c4f5971bed3f"
   },
   {
    "ts": 0.0,
    "type": "tap_received",
-   "id": 2,
+   "id": 3,
    "workload": "spec"
   },
   {
    "ts": 0.0,
    "type": "tap_relayed_request",
-   "id": 2,
+   "id": 3,
    "workload": "spec"
   },
   {
-   "ts": 0.058,
+   "ts": 7.339,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 1,
-    "committed": 2,
+    "accepted": 0,
+    "committed": 1,
     "k": 4,
     "max_tokens": 48,
     "round": 1,
@@ -47,13 +47,13 @@
    }
   },
   {
-   "ts": 0.059,
+   "ts": 7.496,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 6,
+    "accepted": 2,
+    "committed": 4,
     "k": 4,
     "max_tokens": 48,
     "round": 2,
@@ -61,13 +61,13 @@
    }
   },
   {
-   "ts": 0.061,
+   "ts": 7.67,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 10,
+    "accepted": 4,
+    "committed": 9,
     "k": 4,
     "max_tokens": 48,
     "round": 3,
@@ -75,13 +75,13 @@
    }
   },
   {
-   "ts": 0.062,
+   "ts": 7.834,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
     "accepted": 3,
-    "committed": 14,
+    "committed": 13,
     "k": 4,
     "max_tokens": 48,
     "round": 4,
@@ -89,13 +89,13 @@
    }
   },
   {
-   "ts": 0.063,
+   "ts": 7.987,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 18,
+    "accepted": 2,
+    "committed": 16,
     "k": 4,
     "max_tokens": 48,
     "round": 5,
@@ -103,13 +103,13 @@
    }
   },
   {
-   "ts": 0.064,
+   "ts": 8.115,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 22,
+    "accepted": 1,
+    "committed": 18,
     "k": 4,
     "max_tokens": 48,
     "round": 6,
@@ -117,13 +117,13 @@
    }
   },
   {
-   "ts": 0.065,
+   "ts": 8.264,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 26,
+    "accepted": 2,
+    "committed": 21,
     "k": 4,
     "max_tokens": 48,
     "round": 7,
@@ -131,13 +131,13 @@
    }
   },
   {
-   "ts": 0.066,
+   "ts": 8.441,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 30,
+    "accepted": 4,
+    "committed": 26,
     "k": 4,
     "max_tokens": 48,
     "round": 8,
@@ -145,13 +145,13 @@
    }
   },
   {
-   "ts": 0.068,
+   "ts": 8.62,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
     "accepted": 3,
-    "committed": 34,
+    "committed": 30,
     "k": 4,
     "max_tokens": 48,
     "round": 9,
@@ -159,13 +159,13 @@
    }
   },
   {
-   "ts": 0.069,
+   "ts": 8.766,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 38,
+    "accepted": 1,
+    "committed": 32,
     "k": 4,
     "max_tokens": 48,
     "round": 10,
@@ -173,13 +173,13 @@
    }
   },
   {
-   "ts": 0.07,
+   "ts": 8.911,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 42,
+    "accepted": 2,
+    "committed": 35,
     "k": 4,
     "max_tokens": 48,
     "round": 11,
@@ -187,13 +187,13 @@
    }
   },
   {
-   "ts": 0.071,
+   "ts": 9.027,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 46,
+    "accepted": 0,
+    "committed": 36,
     "k": 4,
     "max_tokens": 48,
     "round": 12,
@@ -201,13 +201,13 @@
    }
   },
   {
-   "ts": 0.072,
+   "ts": 9.151,
    "type": "host_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 48,
+    "accepted": 1,
+    "committed": 38,
     "k": 4,
     "max_tokens": 48,
     "round": 13,
@@ -215,51 +215,135 @@
    }
   },
   {
-   "ts": 0.075,
+   "ts": 9.273,
+   "type": "host_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 1,
+    "committed": 40,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 14,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 9.408,
+   "type": "host_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 2,
+    "committed": 43,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 15,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 9.512,
+   "type": "host_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 0,
+    "committed": 44,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 16,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 9.615,
+   "type": "host_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 0,
+    "committed": 45,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 17,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 9.714,
+   "type": "host_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 0,
+    "committed": 46,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 18,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 9.873,
+   "type": "host_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 4,
+    "committed": 48,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 19,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 10.91,
    "type": "host_completed",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
-   "capture_digest": "sha256:a41402156f345c82e3202dad97c7d8aaa27a3e434bedf98e737f7618deba6278",
-   "output_sha256": "sha256:a41402156f345c82e3202dad97c7d8aaa27a3e434bedf98e737f7618deba6278",
+   "capture_digest": "sha256:766158d3f785e75f22155ad5e0709cd17069049371c9aedeb5b870de480bee25",
+   "output_sha256": "sha256:766158d3f785e75f22155ad5e0709cd17069049371c9aedeb5b870de480bee25",
    "summary": {
-    "rounds": 13,
-    "drafts_accepted": 37,
+    "rounds": 19,
+    "drafts_accepted": 32,
     "tokens": 48,
-    "output_preview": "the quick brown fox jumps over a lazy dog while two birds sing the quick brown fox jumps over a lazy dog while two birds sing the quick brow"
+    "output_preview": " that the probability of a bit being 0 or 1 can be determined by the number of times it appears in the data. This is a form of probabilistic"
    }
   },
   {
-   "ts": 0.075,
+   "ts": 10.911,
    "type": "tap_relayed_response",
-   "id": 2,
+   "id": 3,
    "workload": "spec"
   },
   {
-   "ts": 0.075,
+   "ts": 10.911,
    "type": "client_received",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "summary": {
-    "rounds": 13,
-    "drafts_accepted": 37,
+    "rounds": 19,
+    "drafts_accepted": 32,
     "tokens": 48,
-    "output_preview": "the quick brown fox jumps over a lazy dog while two birds sing the quick brown fox jumps over a lazy dog while two birds sing the quick brow"
+    "output_preview": " that the probability of a bit being 0 or 1 can be determined by the number of times it appears in the data. This is a form of probabilistic"
    }
   },
   {
-   "ts": 0.075,
+   "ts": 10.911,
    "type": "tap_verify_started",
-   "id": 2,
+   "id": 3,
    "workload": "spec"
   },
   {
-   "ts": 0.148,
+   "ts": 18.589,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 1,
-    "committed": 2,
+    "accepted": 0,
+    "committed": 1,
     "k": 4,
     "max_tokens": 48,
     "round": 1,
@@ -267,13 +351,13 @@
    }
   },
   {
-   "ts": 0.149,
+   "ts": 18.727,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 6,
+    "accepted": 2,
+    "committed": 4,
     "k": 4,
     "max_tokens": 48,
     "round": 2,
@@ -281,13 +365,13 @@
    }
   },
   {
-   "ts": 0.15,
+   "ts": 18.903,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 10,
+    "accepted": 4,
+    "committed": 9,
     "k": 4,
     "max_tokens": 48,
     "round": 3,
@@ -295,13 +379,13 @@
    }
   },
   {
-   "ts": 0.151,
+   "ts": 19.07,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
     "accepted": 3,
-    "committed": 14,
+    "committed": 13,
     "k": 4,
     "max_tokens": 48,
     "round": 4,
@@ -309,13 +393,13 @@
    }
   },
   {
-   "ts": 0.152,
+   "ts": 19.226,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 18,
+    "accepted": 2,
+    "committed": 16,
     "k": 4,
     "max_tokens": 48,
     "round": 5,
@@ -323,13 +407,13 @@
    }
   },
   {
-   "ts": 0.153,
+   "ts": 19.358,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 22,
+    "accepted": 1,
+    "committed": 18,
     "k": 4,
     "max_tokens": 48,
     "round": 6,
@@ -337,13 +421,13 @@
    }
   },
   {
-   "ts": 0.154,
+   "ts": 19.514,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 26,
+    "accepted": 2,
+    "committed": 21,
     "k": 4,
     "max_tokens": 48,
     "round": 7,
@@ -351,13 +435,13 @@
    }
   },
   {
-   "ts": 0.155,
+   "ts": 19.708,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 30,
+    "accepted": 4,
+    "committed": 26,
     "k": 4,
     "max_tokens": 48,
     "round": 8,
@@ -365,13 +449,13 @@
    }
   },
   {
-   "ts": 0.156,
+   "ts": 19.889,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
     "accepted": 3,
-    "committed": 34,
+    "committed": 30,
     "k": 4,
     "max_tokens": 48,
     "round": 9,
@@ -379,13 +463,13 @@
    }
   },
   {
-   "ts": 0.156,
+   "ts": 20.035,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 38,
+    "accepted": 1,
+    "committed": 32,
     "k": 4,
     "max_tokens": 48,
     "round": 10,
@@ -393,13 +477,13 @@
    }
   },
   {
-   "ts": 0.157,
+   "ts": 20.182,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 42,
+    "accepted": 2,
+    "committed": 35,
     "k": 4,
     "max_tokens": 48,
     "round": 11,
@@ -407,13 +491,13 @@
    }
   },
   {
-   "ts": 0.158,
+   "ts": 20.3,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 46,
+    "accepted": 0,
+    "committed": 36,
     "k": 4,
     "max_tokens": 48,
     "round": 12,
@@ -421,13 +505,13 @@
    }
   },
   {
-   "ts": 0.159,
+   "ts": 20.427,
    "type": "recomp_progress",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "progress": {
-    "accepted": 3,
-    "committed": 48,
+    "accepted": 1,
+    "committed": 38,
     "k": 4,
     "max_tokens": 48,
     "round": 13,
@@ -435,13 +519,97 @@
    }
   },
   {
-   "ts": 0.16,
+   "ts": 20.551,
+   "type": "recomp_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 1,
+    "committed": 40,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 14,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 20.693,
+   "type": "recomp_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 2,
+    "committed": 43,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 15,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 20.799,
+   "type": "recomp_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 0,
+    "committed": 44,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 16,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 20.903,
+   "type": "recomp_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 0,
+    "committed": 45,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 17,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 21.005,
+   "type": "recomp_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 0,
+    "committed": 46,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 18,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 21.166,
+   "type": "recomp_progress",
+   "id": 3,
+   "workload": "spec",
+   "progress": {
+    "accepted": 4,
+    "committed": 48,
+    "k": 4,
+    "max_tokens": 48,
+    "round": 19,
+    "type": "round"
+   }
+  },
+  {
+   "ts": 22.259,
    "type": "recomp_verified",
-   "id": 2,
+   "id": 3,
    "workload": "spec",
    "is_verified": true,
-   "expected_sha256": "sha256:a41402156f345c82e3202dad97c7d8aaa27a3e434bedf98e737f7618deba6278",
-   "actual_sha256": "sha256:a41402156f345c82e3202dad97c7d8aaa27a3e434bedf98e737f7618deba6278",
+   "expected_sha256": "sha256:766158d3f785e75f22155ad5e0709cd17069049371c9aedeb5b870de480bee25",
+   "actual_sha256": "sha256:766158d3f785e75f22155ad5e0709cd17069049371c9aedeb5b870de480bee25",
    "reason": null
   }
  ]

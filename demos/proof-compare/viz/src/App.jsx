@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import GraphView from "./GraphView.jsx";
-import { SCENES, viewParams } from "./graph-model.js";
+import { SCENES, captionFor, viewParams } from "./graph-model.js";
 
 // graphs.json is produced by demos/proof-compare/build_all.py and copied into
 // public/ so Vite serves it. The app fetches it at runtime — regenerating the
@@ -58,7 +58,7 @@ export default function App() {
       {err && <div className="error">Failed to load {PARAMS.src} — {err}</div>}
       {!err && !data && <div className="loading">loading…</div>}
       {data && data[scene.key] && (
-        <GraphView key={scene.key} graph={data[scene.key]} caption={scene.caption} />
+        <GraphView key={scene.key} graph={data[scene.key]} caption={captionFor(data, scene)} />
       )}
       {data && !data[scene.key] && (
         <div className="error">No “{scene.label}” graph in this document.</div>

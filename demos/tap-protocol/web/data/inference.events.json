@@ -1,11 +1,11 @@
 {
  "workload": "inference",
- "source": "mock",
+ "source": "h100",
  "events": [
   {
    "ts": 0.0,
    "type": "request_sent",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "params": {
     "prompt": "The capital of France is",
@@ -15,352 +15,352 @@
   {
    "ts": 0.0,
    "type": "gateway_signed",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
-   "signature_prefix": "61bc4ea09b60"
+   "signature_prefix": "fbb74920ca76"
   },
   {
    "ts": 0.0,
    "type": "tap_received",
-   "id": 1,
+   "id": 2,
    "workload": "inference"
   },
   {
    "ts": 0.0,
    "type": "tap_relayed_request",
-   "id": 1,
+   "id": 2,
    "workload": "inference"
   },
   {
-   "ts": 0.099,
+   "ts": 7.023,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 1,
     "of": 12,
-    "token_id": 2302,
+    "token_id": 12095,
     "type": "token"
    }
   },
   {
-   "ts": 0.101,
+   "ts": 7.055,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 2,
     "of": 12,
-    "token_id": 2109,
+    "token_id": 13,
     "type": "token"
    }
   },
   {
-   "ts": 0.103,
+   "ts": 7.086,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 3,
     "of": 12,
-    "token_id": 2201,
+    "token_id": 576,
     "type": "token"
    }
   },
   {
-   "ts": 0.105,
+   "ts": 7.117,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 4,
     "of": 12,
-    "token_id": 2751,
+    "token_id": 6722,
     "type": "token"
    }
   },
   {
-   "ts": 0.106,
+   "ts": 7.166,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 5,
     "of": 12,
-    "token_id": 2815,
+    "token_id": 315,
     "type": "token"
    }
   },
   {
-   "ts": 0.109,
+   "ts": 7.203,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 6,
     "of": 12,
-    "token_id": 2004,
+    "token_id": 279,
     "type": "token"
    }
   },
   {
-   "ts": 0.111,
+   "ts": 7.241,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 7,
     "of": 12,
-    "token_id": 2709,
+    "token_id": 3639,
     "type": "token"
    }
   },
   {
-   "ts": 0.112,
+   "ts": 7.279,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 8,
     "of": 12,
-    "token_id": 2779,
+    "token_id": 4180,
     "type": "token"
    }
   },
   {
-   "ts": 0.114,
+   "ts": 7.315,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 9,
     "of": 12,
-    "token_id": 2545,
+    "token_id": 374,
     "type": "token"
    }
   },
   {
-   "ts": 0.115,
+   "ts": 7.336,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 10,
     "of": 12,
-    "token_id": 2685,
+    "token_id": 6515,
     "type": "token"
    }
   },
   {
-   "ts": 0.116,
+   "ts": 7.37,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 11,
     "of": 12,
-    "token_id": 2731,
+    "token_id": 11,
     "type": "token"
    }
   },
   {
-   "ts": 0.117,
+   "ts": 7.393,
    "type": "host_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 12,
     "of": 12,
-    "token_id": 2175,
+    "token_id": 422,
     "type": "token"
    }
   },
   {
-   "ts": 0.121,
+   "ts": 8.028,
    "type": "host_completed",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
-   "capture_digest": "sha256:9830bae75b36ed954d1580de62f52ee87e493cc029d14fb5ece70668132b5b9e",
-   "output_sha256": "sha256:9830bae75b36ed954d1580de62f52ee87e493cc029d14fb5ece70668132b5b9e",
+   "capture_digest": "sha256:4a4d5cf0664d45b43b31d927df828511a946fd4220f31e9d30ee4f9ffa27794f",
+   "output_sha256": "sha256:4a4d5cf0664d45b43b31d927df828511a946fd4220f31e9d30ee4f9ffa27794f",
    "summary": {
     "forward_passes": 12,
-    "output_preview": "<2302><2109><2201><2751><2815><2004><2709><2779><2545><2685><2731><2175>"
+    "output_preview": " Paris. The capital of the United States is Washington, D"
    }
   },
   {
-   "ts": 0.121,
+   "ts": 8.028,
    "type": "tap_relayed_response",
-   "id": 1,
+   "id": 2,
    "workload": "inference"
   },
   {
-   "ts": 0.121,
+   "ts": 8.028,
    "type": "client_received",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "summary": {
     "forward_passes": 12,
-    "output_preview": "<2302><2109><2201><2751><2815><2004><2709><2779><2545><2685><2731><2175>"
+    "output_preview": " Paris. The capital of the United States is Washington, D"
    }
   },
   {
-   "ts": 0.122,
+   "ts": 8.029,
    "type": "tap_verify_started",
-   "id": 1,
+   "id": 2,
    "workload": "inference"
   },
   {
-   "ts": 0.217,
+   "ts": 14.683,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 1,
     "of": 12,
-    "token_id": 2302,
+    "token_id": 12095,
     "type": "token"
    }
   },
   {
-   "ts": 0.219,
+   "ts": 14.699,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 2,
     "of": 12,
-    "token_id": 2109,
+    "token_id": 13,
     "type": "token"
    }
   },
   {
-   "ts": 0.221,
+   "ts": 14.716,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 3,
     "of": 12,
-    "token_id": 2201,
+    "token_id": 576,
     "type": "token"
    }
   },
   {
-   "ts": 0.222,
+   "ts": 14.732,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 4,
     "of": 12,
-    "token_id": 2751,
+    "token_id": 6722,
     "type": "token"
    }
   },
   {
-   "ts": 0.224,
+   "ts": 14.758,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 5,
     "of": 12,
-    "token_id": 2815,
+    "token_id": 315,
     "type": "token"
    }
   },
   {
-   "ts": 0.225,
+   "ts": 14.779,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 6,
     "of": 12,
-    "token_id": 2004,
+    "token_id": 279,
     "type": "token"
    }
   },
   {
-   "ts": 0.226,
+   "ts": 14.895,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 7,
     "of": 12,
-    "token_id": 2709,
+    "token_id": 3639,
     "type": "token"
    }
   },
   {
-   "ts": 0.227,
+   "ts": 14.915,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 8,
     "of": 12,
-    "token_id": 2779,
+    "token_id": 4180,
     "type": "token"
    }
   },
   {
-   "ts": 0.229,
+   "ts": 14.935,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 9,
     "of": 12,
-    "token_id": 2545,
+    "token_id": 374,
     "type": "token"
    }
   },
   {
-   "ts": 0.23,
+   "ts": 14.955,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 10,
     "of": 12,
-    "token_id": 2685,
+    "token_id": 6515,
     "type": "token"
    }
   },
   {
-   "ts": 0.231,
+   "ts": 14.974,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 11,
     "of": 12,
-    "token_id": 2731,
+    "token_id": 11,
     "type": "token"
    }
   },
   {
-   "ts": 0.232,
+   "ts": 14.993,
    "type": "recomp_progress",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "progress": {
     "i": 12,
     "of": 12,
-    "token_id": 2175,
+    "token_id": 422,
     "type": "token"
    }
   },
   {
-   "ts": 0.234,
+   "ts": 15.631,
    "type": "recomp_verified",
-   "id": 1,
+   "id": 2,
    "workload": "inference",
    "is_verified": true,
-   "expected_sha256": "sha256:9830bae75b36ed954d1580de62f52ee87e493cc029d14fb5ece70668132b5b9e",
-   "actual_sha256": "sha256:9830bae75b36ed954d1580de62f52ee87e493cc029d14fb5ece70668132b5b9e",
+   "expected_sha256": "sha256:4a4d5cf0664d45b43b31d927df828511a946fd4220f31e9d30ee4f9ffa27794f",
+   "actual_sha256": "sha256:4a4d5cf0664d45b43b31d927df828511a946fd4220f31e9d30ee4f9ffa27794f",
    "reason": null
   }
  ]

@@ -51,6 +51,14 @@ export function maxFlops(nodes) {
   return Math.max(1, ...nodes.map((n) => n.flops || 0));
 }
 
+// A graphs document may carry its own captions under a non-scene "_meta" key
+// (the 4-node tap demo's protocol runs have different provenance than the
+// bundled graphs — e.g. its spec rounds are real, not ported). Pure ->
+// unit-tested.
+export function captionFor(data, scene) {
+  return data?._meta?.captions?.[scene.key] || scene.caption;
+}
+
 // URL params for embedding. ?scene=<key> picks the initial tab; ?src=<url>
 // overrides where graphs.json is fetched from (the 4-node tap demo points
 // this at a protocol run's generated graph). Pure function -> unit-tested.

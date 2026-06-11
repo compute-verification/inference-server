@@ -47,6 +47,21 @@ SCENARIOS = [
     ("coding", {}),
 ]
 
+# Captions for the embedded viz (protocol-graphs.json's _meta.captions
+# overrides the viz's bundled captions — these runs' provenance differs,
+# e.g. the spec rounds here are real, not ported).
+CAPTIONS = {
+    "inference": ("Inference (Qwen3-1.7B, real H100 protocol run) — greedy "
+                  "decode chain; the verifier re-ran it bit-for-bit"),
+    "training": ("LoRA fine-tune (Qwen3-1.7B, real H100 protocol run, toy "
+                 "scale) — independently re-trained, losses bitwise-identical"),
+    "spec": ("Speculative decoding (Qwen3-0.6B draft + 1.7B target, real H100 "
+             "protocol run) — real accept/reject rounds fan into verify"),
+    "coding": ("Coding agent (Qwen3-8B, real H100 protocol run) — parallel "
+               "reads/plans/codegen, really runs its tests; one node = one "
+               "forward pass (collapsed)"),
+}
+
 
 def _get(url: str):
     with urllib.request.urlopen(url, timeout=60) as r:
@@ -200,6 +215,11 @@ def main() -> int:
                 "duration_s": evs[-1]["ts"],
             }
 
+        graphs["_meta"] = {
+            "source": source,
+            "recorded_at": manifest["recorded_at"],
+            "captions": {k: c for k, c in CAPTIONS.items() if k in graphs},
+        }
         (out / "protocol-graphs.json").write_text(json.dumps(graphs))
         (out / "demo-manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
         print(f"[record] wrote {out}/demo-manifest.json "

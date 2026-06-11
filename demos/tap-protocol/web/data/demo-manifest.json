@@ -1,6 +1,6 @@
 {
- "source": "mock",
- "recorded_at": "2026-06-11T05:21:08+00:00",
+ "source": "h100",
+ "recorded_at": "2026-06-11T05:38:31+00:00",
  "scenarios": {
   "inference": {
    "label": "Inference",
@@ -9,18 +9,18 @@
     "max_tokens": 12
    },
    "forward_passes": 12,
-   "total_flops": 61064413184,
+   "total_flops": 52596310016,
    "models": [
     "Qwen/Qwen3-1.7B"
    ],
-   "capture_digest": "sha256:9830bae75b36ed954d1580de62f52ee87e493cc029d14fb5ece70668132b5b9e",
+   "capture_digest": "sha256:4a4d5cf0664d45b43b31d927df828511a946fd4220f31e9d30ee4f9ffa27794f",
    "is_verified": true,
    "summary": {
     "forward_passes": 12,
-    "output_preview": "<2302><2109><2201><2751><2815><2004><2709><2779><2545><2685><2731><2175>"
+    "output_preview": " Paris. The capital of the United States is Washington, D"
    },
    "events_file": "inference.events.json",
-   "duration_s": 0.234
+   "duration_s": 15.631
   },
   "spec": {
    "label": "Speculative decoding",
@@ -29,22 +29,22 @@
     "max_tokens": 48,
     "k": 4
    },
-   "forward_passes": 65,
-   "total_flops": 286471127040,
+   "forward_passes": 95,
+   "total_flops": 418963292160,
    "models": [
     "hf://Qwen/Qwen3-0.6B",
     "hf://Qwen/Qwen3-1.7B"
    ],
-   "capture_digest": "sha256:a41402156f345c82e3202dad97c7d8aaa27a3e434bedf98e737f7618deba6278",
+   "capture_digest": "sha256:766158d3f785e75f22155ad5e0709cd17069049371c9aedeb5b870de480bee25",
    "is_verified": true,
    "summary": {
-    "rounds": 13,
-    "drafts_accepted": 37,
+    "rounds": 19,
+    "drafts_accepted": 32,
     "tokens": 48,
-    "output_preview": "the quick brown fox jumps over a lazy dog while two birds sing the quick brown fox jumps over a lazy dog while two birds sing the quick brow"
+    "output_preview": " that the probability of a bit being 0 or 1 can be determined by the number of times it appears in the data. This is a form of probabilistic"
    },
    "events_file": "spec.events.json",
-   "duration_s": 0.16
+   "duration_s": 22.259
   },
   "training": {
    "label": "LoRA training",
@@ -54,36 +54,36 @@
    "models": [
     "Qwen/Qwen3-1.7B"
    ],
-   "capture_digest": "sha256:103d5d56a9734d14e30c987d8dfd47589e5ede51b880711f6ca29c13021167f0",
+   "capture_digest": "sha256:dc8af299ad254385147712f92e1377d715e4037f38290a06368473abbd7f46ed",
    "is_verified": true,
    "summary": {
     "steps": 12,
-    "first_loss": 3.1,
-    "final_loss": 0.58,
+    "first_loss": 5.276586055755615,
+    "final_loss": 2.7863306999206543,
     "evals": 4,
-    "last_eval": " (mock eval text)"
+    "last_eval": " that the same input always produces the same output. This is a fundamental property of"
    },
    "events_file": "training.events.json",
-   "duration_s": 0.134
+   "duration_s": 20.46
   },
   "coding": {
    "label": "Coding agent",
    "params": {},
-   "forward_passes": 517,
-   "total_flops": 11996941647872,
+   "forward_passes": 4116,
+   "total_flops": 195770902511616,
    "models": [
     "Qwen/Qwen3-8B"
    ],
-   "capture_digest": "sha256:078ef9b004bcd763af0396095788b05c1845ab6ba6ff624d89da74cc5d0b0105",
+   "capture_digest": "sha256:ef70c498cac7e94544fa4b44837ebc904c6858af992a7f39bfee9a9b773310d9",
    "is_verified": true,
    "summary": {
-    "calls": 12,
-    "forward_passes": 517,
+    "calls": 14,
+    "forward_passes": 4116,
     "tests_passed": true,
-    "fix_rounds": 0
+    "fix_rounds": 1
    },
    "events_file": "coding.events.json",
-   "duration_s": 0.322
+   "duration_s": 200.062
   }
  }
 }
