@@ -12,12 +12,12 @@
 //     nodes vertically adjacent (matching the top/bottom handles) and folds long
 //     chains to a readable aspect ratio; short chains stay a single column.
 import ELK from "elkjs/lib/elk.bundled.js";
-import { edgeStyle, nodeColor, maxFlops } from "./graph-model.js";
+import { edgeStyle, nodeColor, maxFlops, edgeInputLabel } from "./graph-model.js";
 
 const elk = new ELK();
 
 export const NODE_W = 184;
-export const NODE_H = 80; // matches .task-node height (incl. the input line)
+export const NODE_H = 66; // matches .task-node height
 const GAP_X = NODE_W + 44;
 const GAP_Y = NODE_H + 34;
 const ASPECT = 1.7; // target width/height for a wrapped chain
@@ -153,18 +153,31 @@ export async function layoutGraph(graph) {
     }
   }
 
+  const hasIncoming = new Set(gEdges.map((e) => e.dst));
+
   const nodes = gNodes.map((n) => ({
     id: n._id,
     type: n.kind === "group" ? "group" : "task",
     position: pos.get(n._id) || { x: 0, y: 0 },
-    data: { ...n, color: nodeColor(n), barFrac: (n.flops || 0) / maxF },
+    data: {
+      ...n,
+      color: nodeColor(n),
+      barFrac: (n.flops || 0) / maxF,
+      // roots have no incoming edge to carry their input annotation, so the
+      // node renders it as a floating badge instead (TaskNode/GroupNode)
+      isRoot: !hasIncoming.has(n._id),
+    },
     width: NODE_W,
     height: NODE_H,
   }));
 
+  // The input-size annotation rides each node's incoming edge — the edge IS
+  // the dataflow. A fan-in node's total goes on its first incoming edge only;
+  // repeating the same figure on every arrow would read as k separate inputs.
+  const labeled = new Set();
   const edges = gEdges.map((e, i) => {
     const st = edgeStyle(byId.get(e.src), byId.get(e.dst));
-    return {
+    const edge = {
       id: `e${i}`,
       source: e.src,
       target: e.dst,
@@ -176,6 +189,22 @@ export async function layoutGraph(graph) {
       },
       markerEnd: { type: "arrowclosed", color: st.stroke, width: 14, height: 14 },
     };
+    if (!labeled.has(e.dst)) {
+      const text = edgeInputLabel(byId.get(e.dst));
+      if (text) {
+        labeled.add(e.dst);
+        edge.label = text;
+        edge.labelStyle = {
+          fill: "#8b949e",
+          fontSize: 10,
+          fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+        };
+        edge.labelBgStyle = { fill: "#0d1117", fillOpacity: 0.85 };
+        edge.labelBgPadding = [4, 2];
+        edge.labelBgBorderRadius = 3;
+      }
+    }
+    return edge;
   });
 
   return { nodes, edges };

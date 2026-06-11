@@ -117,7 +117,7 @@ h1 {
 /* ---- custom task node ---- */
 .task-node {
   width: 184px;
-  height: 80px;
+  height: 66px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-left-width: 4px;
@@ -144,14 +144,17 @@ h1 {
   text-overflow: ellipsis;
 }
 
-.task-in {
+/* input badge for root nodes — they have no incoming edge to carry the
+   annotation, so it floats just above the card (where that edge would land) */
+.task-in-root {
+  position: absolute;
+  top: -17px;
+  left: 1px;
   font-size: 10px;
   color: var(--muted);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .task-flops {

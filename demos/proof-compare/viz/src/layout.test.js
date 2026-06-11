@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { layeredPositions, layoutStrategy, ELK_MAX_NODES } from "./layout.js";
+import { layeredPositions, layoutStrategy, layoutGraph, ELK_MAX_NODES } from "./layout.js";
 
 // Which layouter a graph gets. The big-DAG cutoff exists because elk grinds
 // for minutes (blocking the tab) on multi-thousand-node graphs.
@@ -77,5 +77,44 @@ describe("layeredPositions", () => {
       expect(Number.isFinite(pos.get(n._id).x)).toBe(true);
       expect(Number.isFinite(pos.get(n._id).y)).toBe(true);
     }
+  });
+});
+
+// Input-size annotations ride incoming edges; roots (no incoming edge) are
+// flagged so the node renders the badge itself.
+describe("layoutGraph input annotations", () => {
+  it("labels a node's incoming edge with its input; the root gets isRoot", async () => {
+    const graph = {
+      nodes: [
+        { id: 0, kind: "prefill", tokens: 600, attended: (600 * 601) / 2 },
+        { id: 1, kind: "decode", tokens: 1, attended: 605 },
+      ],
+      edges: [{ src: 0, dst: 1 }],
+    };
+    const { nodes: ns, edges: es } = await layoutGraph(graph);
+    expect(ns[0].data.isRoot).toBe(true);
+    expect(ns[1].data.isRoot).toBe(false);
+    expect(es[0].label).toBe("1 tok + 604 ctx");
+  });
+
+  it("puts a fan-in's total input on exactly one incoming edge", async () => {
+    // diamond: 0 -> {1, 2} -> 3; repeating the total on both arrows into 3
+    // would read as two separate inputs
+    const graph = {
+      nodes: [
+        { id: 0, kind: "prefill", tokens: 10, attended: 55 },
+        { id: 1, kind: "decode", tokens: 1, attended: 11 },
+        { id: 2, kind: "decode", tokens: 1, attended: 11 },
+        { id: 3, kind: "verify", tokens: 5, attended: 115 },
+      ],
+      edges: [
+        { src: 0, dst: 1 }, { src: 0, dst: 2 },
+        { src: 1, dst: 3 }, { src: 2, dst: 3 },
+      ],
+    };
+    const { edges: es } = await layoutGraph(graph);
+    const into3 = es.filter((e) => e.target === "3" && e.label);
+    expect(into3.length).toBe(1);
+    expect(into3[0].label).toBe("5 tok + 20 ctx");
   });
 });

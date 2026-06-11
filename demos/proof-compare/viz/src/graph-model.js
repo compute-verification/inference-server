@@ -62,13 +62,42 @@ export function ctx0(tokens, attended) {
 }
 
 // Human-readable input size for a node: what the pass ingests this step,
-// plus the prior context it attends over (when there is one).
-export function inputSummary(tokens, attended) {
+// plus the prior context it attends over (when there is one). inputText is
+// the bare text (used on edge labels, where the arrow already says "into");
+// inputSummary prefixes "in:" for tooltips and root badges.
+export function inputText(tokens, attended) {
   const t = tokens || 0;
   if (!t) return "";
   const c = ctx0(t, attended);
   const tok = `${t.toLocaleString()} tok`;
-  return c > 0 ? `in: ${tok} + ${c.toLocaleString()} ctx` : `in: ${tok}`;
+  return c > 0 ? `${tok} + ${c.toLocaleString()} ctx` : tok;
+}
+
+export function inputSummary(tokens, attended) {
+  const s = inputText(tokens, attended);
+  return s ? `in: ${s}` : "";
+}
+
+// Input text for a collapsed run: total tokens ingested, plus the context
+// growth across the run (e.g. a 689-decode stream that started at ctx 604 and
+// ended at ctx 1292). A sum of attended over separate passes has no single
+// starting context, hence the range. Compact — no separators in the range, or
+// "ctx 864→1,212" truncates at label width and loses the end value.
+export function groupInputText(d) {
+  const t = d.tokens || 0;
+  if (!t) return "";
+  const tok = `${t.toLocaleString()} tok`;
+  const a = d.ctxFirst || 0;
+  const b = d.ctxLast || 0;
+  if (b > a) return `${tok} · ctx ${a}→${b}`;
+  if (a > 0) return `${tok} + ${a} ctx`;
+  return tok;
+}
+
+// The annotation carried by a node's incoming edge: the input flowing into it.
+export function edgeInputLabel(n) {
+  if (!n) return "";
+  return n.kind === "group" ? groupInputText(n) : inputText(n.tokens, n.attended);
 }
 
 // A graphs document may carry its own captions under a non-scene "_meta" key

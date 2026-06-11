@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ctx0, inputSummary } from "./graph-model.js";
+import { ctx0, inputText, inputSummary, groupInputText, edgeInputLabel } from "./graph-model.js";
 
 // The node annotation "how big is this pass's input" is DERIVED from the
 // trace's exact attention accounting, not stored: attended = Σ_{j=1..t}(c0+j).
@@ -45,5 +45,35 @@ describe("inputSummary", () => {
 
   it("empty for a zero-token node", () => {
     expect(inputSummary(0, 0)).toBe("");
+  });
+});
+
+// The annotation rides each node's incoming edge, where the arrow already
+// says "into" — so edge text drops the "in:" prefix.
+describe("edge input labels", () => {
+  it("inputText is the bare summary", () => {
+    expect(inputText(600, (600 * 601) / 2)).toBe("600 tok");
+    expect(inputText(1, 605)).toBe("1 tok + 604 ctx");
+    expect(inputText(0, 0)).toBe("");
+  });
+
+  it("group ranges stay compact (no separators) so the end value survives", () => {
+    expect(groupInputText({ tokens: 349, ctxFirst: 864, ctxLast: 1212 })).toBe(
+      "349 tok · ctx 864→1212",
+    );
+  });
+
+  it("a flat-context group reads like an atomic pass", () => {
+    expect(groupInputText({ tokens: 20, ctxFirst: 30, ctxLast: 30 })).toBe("20 tok + 30 ctx");
+    expect(groupInputText({ tokens: 256, ctxFirst: 0, ctxLast: 0 })).toBe("256 tok");
+    expect(groupInputText({ tokens: 0 })).toBe("");
+  });
+
+  it("edgeInputLabel dispatches on node kind and tolerates a missing node", () => {
+    expect(edgeInputLabel({ kind: "decode", tokens: 1, attended: 605 })).toBe("1 tok + 604 ctx");
+    expect(edgeInputLabel({ kind: "group", tokens: 349, ctxFirst: 864, ctxLast: 1212 })).toBe(
+      "349 tok · ctx 864→1212",
+    );
+    expect(edgeInputLabel(undefined)).toBe("");
   });
 });
