@@ -1,0 +1,180 @@
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --muted: #8b949e;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+header {
+  padding: 16px 20px 0;
+}
+
+h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.sub {
+  margin: 4px 0 12px;
+  color: var(--muted);
+  max-width: 70ch;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tab:hover { border-color: var(--muted); }
+
+.tab.active {
+  background: #1f6feb22;
+  border-color: #1f6feb;
+  color: #fff;
+}
+
+.graph-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 20px 20px;
+}
+
+.meta {
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.toolbar {
+  flex: none;
+}
+
+.mini {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mini:hover { border-color: var(--muted); }
+
+.canvas {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.loading, .error {
+  padding: 24px;
+  color: var(--muted);
+}
+
+.error { color: #f85149; }
+
+/* ---- custom task node ---- */
+.task-node {
+  width: 184px;
+  height: 66px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 6px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.task-kind {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.task-label {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-flops {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.task-bar-track {
+  margin-top: auto;
+  height: 4px;
+  background: #30363d;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.task-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* collapsed run: dashed border + pointer to signal it expands */
+.group-node {
+  border-style: dashed;
+  cursor: pointer;
+}
+
+/* an expanded run's atomic nodes: pointer to signal click-to-collapse */
+.task-node.collapsible {
+  cursor: pointer;
+}
+
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
