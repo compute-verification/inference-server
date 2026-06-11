@@ -61,13 +61,17 @@ const IGNORABLE = /Failed to load resource.*(404|503)/;
     }, metaBefore, { timeout: 120000 });
   console.log("coding replay graph meta:", (await page.locator("#graph-meta").textContent()).trim());
 
-  // 5. live toggle on a static deploy -> graceful offline
+  // 5. live toggle: lands "offline" on a static deploy (graceful message,
+  // buttons disabled) or "live" when a gateway is behind the deployment
   await page.locator("#mode-live").click();
   await page.waitForFunction(
-    () => document.getElementById("status").textContent === "offline",
+    () => ["offline", "live"].includes(document.getElementById("status").textContent),
     null, { timeout: 15000 });
-  console.log("live probe: offline handled; buttons disabled:",
-    await page.locator('.scenario[data-wl="inference"] button').isDisabled());
+  const probe = await page.locator("#status").textContent();
+  const disabled = await page.locator('.scenario[data-wl="inference"] button').isDisabled();
+  console.log(`live probe: ${probe}; buttons disabled: ${disabled}`);
+  if (probe === "offline" && !disabled) throw new Error("offline must disable run buttons");
+  if (probe === "live" && disabled) throw new Error("live must enable run buttons");
 
   await page.locator("#mode-demo").click();
   const btn = await page.locator('.scenario[data-wl="spec"] button').textContent();

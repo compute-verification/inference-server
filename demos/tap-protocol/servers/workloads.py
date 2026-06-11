@@ -20,6 +20,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
@@ -32,18 +33,40 @@ from modules.core.common.deterministic import canonical_json_bytes
 CAPTURE_DIR = REPO_ROOT / "demos" / "proof-compare" / "capture"
 TRACERS_DIR = REPO_ROOT / "demos" / "proof-compare" / "tracers"
 
+def _int_range(lo: int, hi: int):
+    """Coercion for a bounded int param. The gateway is public on the GPU
+    box -- unbounded max_tokens would let anyone pin the H100 for hours."""
+    def coerce(v):
+        n = int(v)
+        if not lo <= n <= hi:
+            raise WorkloadError(f"value {n} out of range [{lo}, {hi}]")
+        return n
+    return coerce
+
+
+def _str_max(n: int):
+    def coerce(v):
+        s = str(v)
+        if len(s) > n:
+            raise WorkloadError(f"string param longer than {n} chars")
+        return s
+    return coerce
+
+
 # workload key -> harness + the params a client may set (whitelist: key ->
 # (cli flag, coercion)). Anything not listed here is rejected before argv.
 WORKLOADS: dict[str, dict[str, Any]] = {
     "inference": {
         "harness": CAPTURE_DIR / "run_inference.py",
-        "params": {"prompt": ("--prompt", str), "max_tokens": ("--max-tokens", int)},
+        "params": {"prompt": ("--prompt", _str_max(2000)),
+                   "max_tokens": ("--max-tokens", _int_range(1, 256))},
         "label": "Inference",
     },
     "spec": {
         "harness": CAPTURE_DIR / "run_spec.py",
-        "params": {"prompt": ("--prompt", str), "max_tokens": ("--max-tokens", int),
-                   "k": ("--k", int)},
+        "params": {"prompt": ("--prompt", _str_max(2000)),
+                   "max_tokens": ("--max-tokens", _int_range(1, 256)),
+                   "k": ("--k", _int_range(1, 8))},
         "label": "Speculative decoding",
     },
     "training": {
@@ -82,7 +105,9 @@ def build_argv(workload: str, params: dict, mock: bool, out_path: Path) -> list[
             raise WorkloadError(f"workload {workload!r} does not accept "
                                 f"param {key!r}; allowed: {sorted(spec['params'])}")
         flag, coerce = spec["params"][key]
-        argv.extend([flag, str(coerce(value))])
+        # --flag=value form: a prompt starting with "-" must not be parsed
+        # as an option by the harness's argparse
+        argv.append(f"{flag}={coerce(value)}")
     return argv
 
 
@@ -103,6 +128,19 @@ def run_workload(
 
     proc = subprocess.Popen(argv, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True, bufsize=1)
+    # Watchdog, not wait(timeout=...): the stdout read loop below blocks until
+    # pipe EOF, so a wedged harness (GPU hang) would otherwise hold the
+    # cluster's run_lock forever. The timer kills the child; the loop then
+    # sees EOF and the returncode check reports the death.
+    timed_out = threading.Event()
+
+    def _kill_on_deadline() -> None:
+        timed_out.set()
+        proc.kill()
+
+    watchdog = threading.Timer(timeout, _kill_on_deadline)
+    watchdog.daemon = True
+    watchdog.start()
     tail: list[str] = []
     assert proc.stdout is not None
     try:
@@ -118,9 +156,10 @@ def run_workload(
                         sys.stderr.write(f"[workloads] bad PROGRESS line: {line}\n")
             else:
                 sys.stderr.write(f"[{workload}] {line}\n")
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        proc.wait()
+    finally:
+        watchdog.cancel()
+    if timed_out.is_set():
         raise WorkloadError(f"workload {workload!r} timed out after {timeout}s")
     if proc.returncode != 0:
         raise WorkloadError(f"workload {workload!r} exited {proc.returncode}; "
@@ -176,13 +215,14 @@ def capture_to_trace(workload: str, capture: dict) -> dict:
         if "events" not in capture or "shapes" not in capture:
             raise WorkloadError("inference capture is not a canonical trace")
         return capture            # run_inference.py already emits the trace
+    # aliased: "training"/"coding" are collision-prone top-level module names
     if workload == "spec":
-        import specdecode
-        return specdecode.trace_spec_real(capture)
+        import specdecode as spec_tracer
+        return spec_tracer.trace_spec_real(capture)
     if workload == "training":
-        import training
-        return training.trace_training_real(capture)
+        import training as training_tracer
+        return training_tracer.trace_training_real(capture)
     if workload == "coding":
-        import coding
-        return coding.trace_coding_real(capture)
+        import coding as coding_tracer
+        return coding_tracer.trace_coding_real(capture)
     raise WorkloadError(f"unknown workload: {workload!r}")

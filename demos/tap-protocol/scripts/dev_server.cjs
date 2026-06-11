@@ -76,7 +76,7 @@ http.createServer(async (req, res) => {
 
   // static files from web/
   let p = path.normalize(path.join(WEB, u.pathname === "/" ? "index.html" : u.pathname));
-  if (!p.startsWith(WEB)) { res.writeHead(403); return res.end(); }
+  if (p !== WEB && !p.startsWith(WEB + path.sep)) { res.writeHead(403); return res.end(); }
   if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, "index.html");
   fs.readFile(p, (err, data) => {
     if (err) { res.writeHead(404); return res.end("not found"); }

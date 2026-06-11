@@ -4,8 +4,8 @@ Runs an actual agent scaffold against a real HF model and a small shipped
 workspace (agent_workspace/): the agent orients, reads every workspace file in
 parallel, drafts three plan candidates in parallel, synthesizes one plan,
 writes the source and the test file in parallel, and then the harness REALLY
-executes the generated tests (`python -m unittest discover`) — with up to two
-fix rounds if they fail. Every LLM call is recorded with its real prompt/
+executes the generated tests (`python -m unittest discover`) — with up to
+MAX_FIX_ROUNDS fix rounds if they fail. Every LLM call is recorded with its real prompt/
 generated token counts and the calls whose outputs fed its prompt, producing
 the raw capture that tracers/coding.py turns into the canonical task graph.
 

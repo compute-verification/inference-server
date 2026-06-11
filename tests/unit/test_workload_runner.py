@@ -32,13 +32,28 @@ class TestBuildArgv(unittest.TestCase):
         argv = W.build_argv("spec", {"max_tokens": "9", "k": 4}, True,
                             Path("/tmp/x.json"))
         self.assertIn("--mock", argv)
-        i = argv.index("--max-tokens")
-        self.assertEqual(argv[i + 1], "9")
-        self.assertIn("--k", argv)
+        # --flag=value form: a prompt starting with "-" must not be parsed
+        # as an option by the harness's argparse
+        self.assertIn("--max-tokens=9", argv)
+        self.assertIn("--k=4", argv)
+
+    def test_leading_dash_prompt_stays_one_argument(self):
+        argv = W.build_argv("inference", {"prompt": "-rf /"}, True, Path("/t.json"))
+        self.assertIn("--prompt=-rf /", argv)
 
     def test_non_numeric_int_param_rejected(self):
         with self.assertRaises(ValueError):
             W.build_argv("inference", {"max_tokens": "lots"}, True, Path("/t.json"))
+
+    def test_out_of_range_params_rejected(self):
+        # the gateway is public on the GPU box; unbounded params would let
+        # anyone pin the H100 for hours
+        for params in ({"max_tokens": 0}, {"max_tokens": 10_000},
+                       {"prompt": "x" * 2001}):
+            with self.assertRaises(W.WorkloadError):
+                W.build_argv("inference", params, True, Path("/t.json"))
+        with self.assertRaises(W.WorkloadError):
+            W.build_argv("spec", {"k": 9}, True, Path("/t.json"))
 
 
 class TestRunWorkloadMock(unittest.TestCase):
@@ -80,6 +95,20 @@ class TestRunWorkloadMock(unittest.TestCase):
         self.assertTrue(s["tests_passed"])
         self.assertEqual(s["forward_passes"],
                          sum(max(c["gen_tokens"], 1) for c in cap["calls"]))
+
+
+class TestDeterminismGuards(unittest.TestCase):
+    def test_every_real_harness_path_sets_deterministic_algorithms(self):
+        # The bitwise re-run claim leans on this guard: it must error rather
+        # than silently pick a nondeterministic kernel. A harness missing it
+        # can verify green today and break on a future torch/kernel change
+        # (the spec harness shipped without it once -- caught in review).
+        for wl, spec in W.WORKLOADS.items():
+            src = Path(spec["harness"]).read_text()
+            self.assertIn("use_deterministic_algorithms", src,
+                          f"{wl}: harness lacks the determinism guard")
+            self.assertIn("CUBLAS_WORKSPACE_CONFIG", src,
+                          f"{wl}: harness lacks the cuBLAS workspace env")
 
 
 class TestCanonicalDigest(unittest.TestCase):

@@ -59,6 +59,15 @@ from servers import workloads as W
 
 JOBS: dict[int, dict] = {}
 JOBS_LOCK = threading.Lock()
+MAX_FINISHED_JOBS = 32   # finished jobs hold their full capture in memory
+
+
+def _evict_finished_locked() -> None:
+    """Drop the oldest finished jobs past the cap. Caller holds JOBS_LOCK."""
+    done = [i for i, j in sorted(JOBS.items())
+            if j.get("status") in ("done", "failed")]
+    for i in done[:max(0, len(done) - MAX_FINISHED_JOBS)]:
+        del JOBS[i]
 
 
 def _run_job(env_id: int, signed_req: SignedEnvelope, tap_url: str) -> None:
@@ -76,6 +85,7 @@ def _run_job(env_id: int, signed_req: SignedEnvelope, tap_url: str) -> None:
     except Exception as exc:  # noqa: BLE001
         with JOBS_LOCK:
             JOBS[env_id].update(status="failed", error=str(exc))
+            _evict_finished_locked()
         sys.stderr.write(f"[gateway] run {env_id} failed: {exc}\n")
         return
     with JOBS_LOCK:
@@ -83,6 +93,7 @@ def _run_job(env_id: int, signed_req: SignedEnvelope, tap_url: str) -> None:
                             capture_digest=result.capture_digest,
                             summary=result.summary,
                             capture=result.capture)
+        _evict_finished_locked()
 
 
 # ---------------------------------------------------------------------------
@@ -140,8 +151,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 graph = build_graph(trace).to_dict()
             except Exception as exc:  # noqa: BLE001
                 return self._send_json(500, {"error": f"graph build failed: {exc}"})
-            # same file shape as the viz's graphs.json: {scene_key: graph}
-            return self._send_json(200, {job["workload"]: graph})
+            # same file shape as the viz's graphs.json: {scene_key: graph}.
+            # _meta.captions overrides the viz's bundled captions, which
+            # describe the RECORDED runs -- wrong provenance for a live one.
+            label = W.WORKLOADS[job["workload"]]["label"]
+            return self._send_json(200, {
+                job["workload"]: graph,
+                "_meta": {"captions": {job["workload"]:
+                    f"{label} — live run #{env_id}, generated from this "
+                    "run's capture"}},
+            })
         return self._send_json(404, {"error": "not found"})
 
     def do_OPTIONS(self) -> None:

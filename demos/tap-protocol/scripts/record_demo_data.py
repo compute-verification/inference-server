@@ -215,10 +215,18 @@ def main() -> int:
                 "duration_s": evs[-1]["ts"],
             }
 
+        # the "real H100" captions are earned only by an h100 recording; a
+        # mock recording must never ship graphs captioned as real
+        if source == "h100":
+            captions = {k: c for k, c in CAPTIONS.items() if k in graphs}
+        else:
+            captions = {k: f"{W.WORKLOADS[k]['label']} — {source} wiring run "
+                           "(placeholder, NOT a real GPU run)"
+                        for k in graphs}
         graphs["_meta"] = {
             "source": source,
             "recorded_at": manifest["recorded_at"],
-            "captions": {k: c for k, c in CAPTIONS.items() if k in graphs},
+            "captions": captions,
         }
         (out / "protocol-graphs.json").write_text(json.dumps(graphs))
         (out / "demo-manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")

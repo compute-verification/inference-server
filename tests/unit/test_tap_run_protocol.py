@@ -172,6 +172,61 @@ class TestRunProtocolAllWorkloads(unittest.TestCase):
         self.assertNotIn("capture", job)
         self.assertIn("summary", job)
 
+    def test_event_ingest_rejects_lifecycle_types(self):
+        # the tap synthesizes lifecycle events itself; /event must only
+        # accept the two progress types or verdicts become spoofable
+        import urllib.error
+        for spoof in ("recomp_verified", "host_completed", "request_sent",
+                      "run_failed"):
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                _post(f"http://127.0.0.1:{TAP}/event",
+                      {"type": spoof, "id": 1, "is_verified": True})
+            self.assertEqual(ctx.exception.code, 400, spoof)
+        # the allowed types still work
+        code, _ = _post(f"http://127.0.0.1:{TAP}/event",
+                        {"type": "host_progress", "id": 999,
+                         "workload": "inference", "progress": {"type": "token"}})
+        self.assertEqual(code, 200)
+
+    def test_digest_claim_mismatch_alarms(self):
+        # a host that ships a capture not hashing to its own claimed digest
+        # is internally bogus -- recomp must refuse WITHOUT re-running
+        sys.path.insert(0, str(REPO_ROOT / "demos" / "tap-protocol"))
+        from servers.envelope import sign
+        req_env = sign({"workload": "inference",
+                        "params": {"prompt": "x", "max_tokens": 3}}, 7001)
+        resp_env = sign({"workload": "inference",
+                         "capture_digest": "sha256:" + "0" * 64,
+                         "summary": {}, "capture": {"events": [], "shapes": {}}},
+                        7001)
+        code, verdict = _post(f"http://127.0.0.1:{RECOMP}/verify_run",
+                              {"request_data": req_env.model_dump(),
+                               "response_data": resp_env.model_dump()})
+        self.assertEqual(code, 200)
+        self.assertFalse(verdict["is_verified"])
+        self.assertEqual(verdict["reason"], "digest_claim_mismatch")
+        alarm = self.tmp / "recomp" / "alarm.jsonl"
+        self.assertTrue(alarm.exists())
+        rec = json.loads(alarm.read_text().splitlines()[-1])
+        self.assertEqual(rec["reason"], "digest_claim_mismatch")
+        self.assertEqual(rec["id"], 7001)
+
+    def test_host_failure_emits_terminal_run_failed_event(self):
+        # invalid params POSTed straight to the tap (skipping the gateway's
+        # submit-time validation) make the host's build_argv fail -> the tap
+        # must emit a TERMINAL event or a watching client spins forever
+        import urllib.error
+        sys.path.insert(0, str(REPO_ROOT / "demos" / "tap-protocol"))
+        from servers.envelope import sign
+        req_env = sign({"workload": "inference", "params": {"bogus": 1}}, 7002)
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            _post(f"http://127.0.0.1:{TAP}/run", req_env.model_dump())
+        self.assertEqual(ctx.exception.code, 502)
+        _, evs = _get(f"http://127.0.0.1:{TAP}/capture")
+        failed = [e for e in evs if e["type"] == "run_failed" and e["id"] == 7002]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["reason"], "host_http_400")
+
 
 class TestForcedDivergenceAlarms(unittest.TestCase):
     @classmethod

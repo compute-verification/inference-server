@@ -519,7 +519,7 @@
     <div class="item"><span class="lbl">Models</span><span class="val">Qwen3-1.7B · 0.6B (draft) · 8B (agent)</span></div>
     <div class="item"><span class="lbl">Hardware</span><span class="val">H100 SXM · single GPU</span></div>
     <div class="item"><span class="lbl">Determinism</span><span class="val">deterministic kernels · eager attention · greedy · seed=0</span></div>
-    <div class="item"><span class="lbl">Verification</span><span class="val">full re-run · canonical capture sha256</span></div>
+    <div class="item"><span class="lbl">Verification</span><span class="val">full independent re-run · canonical capture sha256 · proves the result, not freshness</span></div>
   </div>
 
   <footer>
@@ -642,7 +642,17 @@ const BADGE = {
   ok:   `<span class="badge ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Verified</span>`,
   bad:  `<span class="badge bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Mismatch</span>`,
   warm: `<span class="badge warm"><span class="spin"></span>Verifying…</span>`,
+  unavail: `<span class="badge warm">Unverified</span>`,
+  fail: `<span class="badge warm">Run failed</span>`,
 };
+
+// The red Mismatch badge is reserved for INTEGRITY violations — a recomp
+// that was unreachable or crashed is "verification unavailable", not an
+// accusation that the host cheated.
+const INTEGRITY_REASONS = new Set([
+  "capture_digest_mismatch", "digest_claim_mismatch", "workload_mismatch",
+  "output_mismatch", "bad_signature", "id_mismatch",
+]);
 
 function newRow({ key, workload, label, modeTag }) {
   if (tbody.children.length === 1 && tbody.children[0].cells.length === 1) tbody.innerHTML = "";
@@ -704,7 +714,7 @@ function renderDigest(m) {
   }
 }
 
-function setVerdict(m, verdict) {
+function setVerdict(m, verdict, reason) {
   m.verdict = verdict;
   const strip = m.tr.querySelector(".strip");
   strip.classList.remove("pending", "ok", "bad");
@@ -715,6 +725,10 @@ function setVerdict(m, verdict) {
   } else if (verdict === "bad") {
     strip.classList.add("bad"); cell.innerHTML = BADGE.bad;
     m.tr.classList.remove("current"); m.tr.classList.add("alarm");
+  } else if (verdict === "unavail" || verdict === "fail") {
+    cell.innerHTML = BADGE[verdict];
+    if (reason) cell.title = reason;
+    m.tr.classList.remove("current");
   } else cell.innerHTML = BADGE.warm;
   renderDigest(m);
 }
@@ -812,16 +826,27 @@ function handleEvent(evt, animate) {
     case "recomp_progress":
       if (animate) { flashNode("recomp", "active", 420); setCaption("verifier", progressCaption(evt.progress)); }
       break;
-    case "recomp_verified":
+    case "recomp_verified": {
+      // an unreachable/crashed recomp is NOT a mismatch
+      const state = evt.is_verified ? "ok"
+        : INTEGRITY_REASONS.has(evt.reason) ? "bad" : "unavail";
       if (m) {
         m.recompDigest = evt.actual_sha256 || m.recompDigest;
         setStage(m, "verified");
-        setVerdict(m, evt.is_verified ? "ok" : "bad");
+        setVerdict(m, state, evt.reason);
       }
       if (animate) {
-        flashNode("recomp", evt.is_verified ? "ok" : "bad", 1500);
-        setCaption("verifier", evt.is_verified ? "re-run matches bit-for-bit ✓" : "DIGEST MISMATCH — alarm raised");
+        flashNode("recomp", state === "unavail" ? "active" : state, 1500);
+        setCaption("verifier",
+          state === "ok" ? "re-run matches bit-for-bit ✓"
+          : state === "bad" ? "DIGEST MISMATCH — alarm raised"
+          : `verification unavailable (${evt.reason || "?"})`);
       }
+      break;
+    }
+    case "run_failed":
+      if (m) setVerdict(m, "fail", evt.reason);
+      if (animate) setCaption("error", `run failed (${evt.reason || "?"})`);
       break;
   }
 }
@@ -870,22 +895,35 @@ async function replayScenario(wl) {
 
 // ----------------------------------------------------------------------
 // Live mode: real runs against the cluster behind /api/*.
+let sseOpenedAt = 0;   // arrival-based freshness: no GPU-box/browser clock sync
+let sseLastSeq = 0;    // dedupe: the tap replays its ring buffer on every reconnect
+
 function ensureEventSource() {
   if (eventSource) return;
   eventSource = new EventSource("/api/events");
   eventSource.onerror = () => { if (MODE === "live") setStatus("warm", "reconnecting"); };
-  eventSource.onopen = () => { if (MODE === "live") setStatus("on", "live"); };
+  eventSource.onopen = () => {
+    sseOpenedAt = Date.now();
+    if (MODE === "live") setStatus("on", "live");
+  };
   eventSource.onmessage = (msg) => {
     let evt;
     try { evt = JSON.parse(msg.data); }
     catch (e) { console.warn("SSE parse error", e.message); return; }
     if (evt.type === "offline") { setStatus("bad", evt.reason || "offline"); return; }
+    if (evt.seq) {
+      if (evt.seq <= sseLastSeq) return;        // reconnect re-delivery
+      sseLastSeq = evt.seq;
+    }
     if (!liveRuns.has(evt.id)) return;          // not one of ours
-    const fresh = !evt.ts || (Date.now() / 1000 - evt.ts) < 6;
+    // backlog arrives in a burst right after (re)open; live events later
+    const fresh = Date.now() - sseOpenedAt > 1500;
     handleEvent({ ...evt, _rowKey: "live-" + evt.id }, fresh);
-    if (evt.type === "recomp_verified") {
+    if (evt.type === "recomp_verified" || evt.type === "run_failed") {
       const wl = liveRuns.get(evt.id);
-      showGraph(wl, `../api/graph?id=${evt.id}`, `live run #${evt.id}`);
+      liveRuns.delete(evt.id);
+      if (evt.type === "recomp_verified")
+        showGraph(wl, `../api/graph?id=${evt.id}`, `live run #${evt.id}`);
       busy = false;                    // before setScenarioRunning: it re-renders buttons
       setScenarioRunning(wl, false);
     }

@@ -508,6 +508,13 @@ class TapHandler(BaseHTTPRequestHandler):
         BUS.emit("tap_received", env_id, workload=workload)
         BUS.emit("tap_relayed_request", env_id, workload=workload)
 
+        def _fail(code: int, reason: str, body: dict) -> None:
+            # terminal event: without it a watching client would show
+            # "Verifying…" forever (the gateway sees the HTTP error, but
+            # event-stream consumers never would)
+            BUS.emit("run_failed", env_id, workload=workload, reason=reason)
+            self._send_json(code, body)
+
         try:
             outbound = Request(
                 f"{self.host_url}/run",
@@ -523,19 +530,24 @@ class TapHandler(BaseHTTPRequestHandler):
                 err_body = exc.read().decode("utf-8", errors="replace")
             except Exception:
                 err_body = ""
-            return self._send_json(502, {"error": f"host returned HTTP {exc.code}", "body": err_body})
+            return _fail(502, f"host_http_{exc.code}",
+                         {"error": f"host returned HTTP {exc.code}", "body": err_body})
         except URLError as exc:
-            return self._send_json(502, {"error": f"host unreachable: {exc.reason}"})
+            return _fail(502, "host_unreachable",
+                         {"error": f"host unreachable: {exc.reason}"})
         except Exception as exc:  # noqa: BLE001
-            return self._send_json(502, {"error": f"host call failed: {exc}"})
+            return _fail(502, "host_call_failed",
+                         {"error": f"host call failed: {exc}"})
 
         try:
             resp_env = SignedEnvelope.model_validate(resp_body)
         except Exception as exc:  # noqa: BLE001
-            return self._send_json(502, {"error": f"bad response envelope: {exc}"})
+            return _fail(502, "bad_response_envelope",
+                         {"error": f"bad response envelope: {exc}"})
 
         if not verify(resp_env):
-            return self._send_json(401, {"error": "bad response signature"})
+            return _fail(401, "bad_response_signature",
+                         {"error": "bad response signature"})
 
         resp_env_dict = resp_env.model_dump()
         result = resp_env_dict["data"]["payload"]

@@ -68,7 +68,10 @@ def spec_capture(prompt: str, max_tokens: int, k: int, mock: bool) -> dict:
         draft_cfg = dict(F.KNOWN_SHAPES[DRAFT_ID])
         target_cfg = dict(F.KNOWN_SHAPES[TARGET_ID])
     else:
+        import torch
         from transformers import AutoConfig
+        # error out rather than silently pick a nondeterministic kernel
+        torch.use_deterministic_algorithms(True)
         draft_next, target_next, tok = sd.hf_models(DRAFT_ID, TARGET_ID)
         prompt_ids = tok.encode(prompt)
         res = sd.speculative_decode(prompt_ids, draft_next, target_next, k,
