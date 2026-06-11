@@ -207,6 +207,26 @@ def summarize(workload: str, capture: dict) -> dict:
     raise WorkloadError(f"unknown workload: {workload!r}")
 
 
+_CODING_TASK: str | None = None
+
+
+def _coding_task() -> str:
+    """The agent harness's fixed task statement — a publicly-known constant.
+
+    Imported from the harness itself (stdlib-only at module level) so the
+    whitelist can never drift from what the agent actually receives.
+    """
+    global _CODING_TASK
+    if _CODING_TASK is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_wl_run_coding_agent", CAPTURE_DIR / "run_coding_agent.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _CODING_TASK = mod.TASK
+    return _CODING_TASK
+
+
 def capture_to_trace(workload: str, capture: dict) -> dict:
     """Convert a capture to the canonical trace via the proof-compare tracers."""
     if str(TRACERS_DIR) not in sys.path:
@@ -224,5 +244,10 @@ def capture_to_trace(workload: str, capture: dict) -> dict:
         return training_tracer.trace_training_real(capture)
     if workload == "coding":
         import coding as coding_tracer
-        return coding_tracer.trace_coding_real(capture)
+        trace = coding_tracer.trace_coding_real(capture)
+        # The fixed task statement costs nothing to pass in: build_graph
+        # stamps only byte-for-byte matches, so a custom live-run prompt
+        # simply won't match and stays paid.
+        trace["whitelist"] = [_coding_task()]
+        return trace
     raise WorkloadError(f"unknown workload: {workload!r}")

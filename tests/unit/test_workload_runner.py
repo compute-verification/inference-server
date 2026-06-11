@@ -121,5 +121,32 @@ class TestCanonicalDigest(unittest.TestCase):
                             W.canonical_digest({"a": 2}))
 
 
+
+class TestCodingWhitelist(unittest.TestCase):
+    """The coding trace whitelists the harness's fixed task statement, so the
+    orient call's input is free in the graph — but ONLY on an exact match."""
+
+    def _capture(self, prompt: str) -> dict:
+        from modules.proof_server import flops as F
+        return {"model": "hf://Qwen/Qwen3-8B",
+                "config": F.KNOWN_SHAPES["Qwen/Qwen3-1.7B"],
+                "prompt": prompt,
+                "calls": [{"id": 0, "phase": "read prompt, orient",
+                           "role": "reason", "parents": [],
+                           "prompt_tokens": 10, "gen_tokens": 2, "text": "ok"}]}
+
+    def test_trace_carries_the_harness_task_constant(self):
+        task = W._coding_task()
+        trace = W.capture_to_trace("coding", self._capture(task))
+        self.assertEqual(trace["whitelist"], [task])
+        g = build_graph(trace)  # trace-key fallback: no explicit param needed
+        self.assertTrue(g.nodes[0].get("whitelisted"))
+
+    def test_a_custom_prompt_stays_paid(self):
+        trace = W.capture_to_trace("coding", self._capture("write me a haiku"))
+        self.assertEqual(trace["whitelist"], [W._coding_task()])
+        g = build_graph(trace)
+        self.assertNotIn("whitelisted", g.nodes[0])
+
 if __name__ == "__main__":
     unittest.main()
