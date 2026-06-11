@@ -17,7 +17,7 @@ import { edgeStyle, nodeColor, maxFlops } from "./graph-model.js";
 const elk = new ELK();
 
 export const NODE_W = 184;
-export const NODE_H = 66;
+export const NODE_H = 80; // matches .task-node height (incl. the input line)
 const GAP_X = NODE_W + 44;
 const GAP_Y = NODE_H + 34;
 const ASPECT = 1.7; // target width/height for a wrapped chain

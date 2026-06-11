@@ -51,6 +51,26 @@ export function maxFlops(nodes) {
   return Math.max(1, ...nodes.map((n) => n.flops || 0));
 }
 
+// Starting context length of a pass, derived from the trace's exact
+// accounting: `attended` is the sum of per-token context lengths, so
+// attended = Σ_{j=1..t} (c0 + j)  ⇒  c0 = attended/t − (t+1)/2.
+// A prefill (no prior context) yields 0; a decode at position 605 yields 604.
+export function ctx0(tokens, attended) {
+  const t = tokens || 0;
+  if (!t) return 0;
+  return Math.max(0, Math.round((attended || 0) / t - (t + 1) / 2));
+}
+
+// Human-readable input size for a node: what the pass ingests this step,
+// plus the prior context it attends over (when there is one).
+export function inputSummary(tokens, attended) {
+  const t = tokens || 0;
+  if (!t) return "";
+  const c = ctx0(t, attended);
+  const tok = `${t.toLocaleString()} tok`;
+  return c > 0 ? `in: ${tok} + ${c.toLocaleString()} ctx` : `in: ${tok}`;
+}
+
 // A graphs document may carry its own captions under a non-scene "_meta" key
 // (the 4-node tap demo's protocol runs have different provenance than the
 // bundled graphs — e.g. its spec rounds are real, not ported). Pure ->

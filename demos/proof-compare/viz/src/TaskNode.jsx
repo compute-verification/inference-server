@@ -1,9 +1,10 @@
 import { Handle, Position } from "@xyflow/react";
-import { fmtFlops } from "./graph-model.js";
+import { fmtFlops, inputSummary } from "./graph-model.js";
 
 // One task = one forward pass. The card mirrors the original renderer: kind line
-// (with a ✗ for a rejected draft), label, formatted FLOPs, and a proportional
-// FLOPs bar so relative cost is readable at a glance. Hover shows the payload.
+// (with a ✗ for a rejected draft), label, input size (tokens ingested + prior
+// context attended), formatted FLOPs, and a proportional FLOPs bar so relative
+// cost is readable at a glance. Hover shows the payload.
 export default function TaskNode({ data }) {
   const mark = data.status === "rejected" ? "✗ " : "";
   const tip = data.collapsibleSeg ? buildTip(data) + "\n(click to collapse this run)" : buildTip(data);
@@ -16,6 +17,7 @@ export default function TaskNode({ data }) {
         {data.kind}
       </div>
       <div className="task-label">{(data.label || data.kind).slice(0, 28)}</div>
+      <div className="task-in">{inputSummary(data.tokens, data.attended)}</div>
       <div className="task-flops">{fmtFlops(data.flops || 0)}</div>
       <div className="task-bar-track">
         <div
@@ -31,7 +33,9 @@ export default function TaskNode({ data }) {
 function buildTip(d) {
   const lines = [
     `${d.kind}${d.status ? " · " + d.status : ""}`,
-    `cost: ${fmtFlops(d.flops || 0)} (${d.tokens} tok)`,
+    inputSummary(d.tokens, d.attended)
+      + ` · attends ${(d.attended || 0).toLocaleString()} (tok,key) pairs`,
+    `cost: ${fmtFlops(d.flops || 0)}`,
   ];
   const p = d.payload || {};
   for (const [k, v] of Object.entries(p)) {

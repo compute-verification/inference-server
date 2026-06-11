@@ -5,6 +5,8 @@
 // a set of expanded segment ids, so the UI can show ~12 group nodes for the
 // coding agent while the data underneath is still ~6400 forward passes.
 
+import { ctx0 } from "./graph-model.js";
+
 export const COLLAPSE_MIN = 16;
 
 // The key that nodes in a run must share to collapse together: (kind, phase).
@@ -109,6 +111,10 @@ export function buildDisplayGraph(graph, expandedSet = new Set(), opts = {}) {
         flops: run.reduce((a, n) => a + (n.flops || 0), 0),
         tokens: run.reduce((a, n) => a + (n.tokens || 0), 0),
         attended: run.reduce((a, n) => a + (n.attended || 0), 0),
+        // context range across the run, for the "in:" annotation — a sum of
+        // attended over separate passes has no single starting context
+        ctxFirst: ctx0(first.tokens, first.attended),
+        ctxLast: ctx0(last.tokens, last.attended),
         label: phaseLabel(first),
         firstId: first.id,
         lastId: last.id,
