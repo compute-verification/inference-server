@@ -1,12 +1,6 @@
 {
   "version": 2,
   "public": true,
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "rewrites": [
-    { "source": "/api/inference", "destination": "/api/inference" },
-    { "source": "/api/events",    "destination": "/api/events" }
-  ],
   "headers": [
     {
       "source": "/api/events",
