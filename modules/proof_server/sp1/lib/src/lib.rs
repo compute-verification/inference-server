@@ -84,3 +84,98 @@ impl PublicOutputs {
         Some(Self { auditor_nonce: nonce, ledger_digest, pubkey_set_digest, n_rows, n_signers })
     }
 }
+
+// ---------------------------------------------------------------------------
+// Bounded-cost partition proof (taskgraph-partition-v1)
+// ---------------------------------------------------------------------------
+
+/// Domain-separation prefix of the canonical graph encoding hashed in-guest.
+pub const PARTITION_GRAPH_MAGIC: &[u8] = b"taskgraph-partition-v1\n";
+
+/// All inputs to the partition SP1 program.
+///
+/// The graph's cost view (`flops`, `in_size`, `whitelisted`, `edges`) is
+/// re-encoded and hashed *inside the guest*, so the committed `graph_digest`
+/// binds the proof to exactly these numbers — a prover cannot shrink a node's
+/// FLOPs without changing the digest the verifier recomputes from the
+/// published graph. The `parts` assignment is the private witness: the proof
+/// shows a valid bounded partition EXISTS without revealing it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PartitionInput {
+    /// 32-byte opaque nonce from the auditor, committed back unchanged.
+    pub auditor_nonce: [u8; 32],
+    /// Per-node exact FLOPs, in node-id (= topological) order.
+    pub flops: Vec<u64>,
+    /// Per-node ingested input size (tokens), same order.
+    pub in_size: Vec<u32>,
+    /// Per-node whitelist flag (1 = input is a publicly-known constant,
+    /// free to pass), same order. Values other than 0/1 abort the guest.
+    pub whitelisted: Vec<u8>,
+    /// Dependency edges as (src_idx, dst_idx) node-index pairs, strictly
+    /// lexicographically sorted and deduped, with src < dst (ids ascend in
+    /// topological order, so this also makes the graph a DAG).
+    pub edges: Vec<(u32, u32)>,
+    /// The witness: part id per node. Ids must cover exactly 0..n_parts and
+    /// never decrease along an edge (parts are executable stages in order).
+    pub parts: Vec<u32>,
+    /// Per-part FLOP budget (C).
+    pub cap_flops: u64,
+    /// Per-part non-whitelisted input budget in tokens (S).
+    pub cap_input: u64,
+}
+
+/// Canonical byte encoding of a task graph's cost view. The guest hashes
+/// this to produce the committed `graph_digest`; the Python side
+/// (`modules.proof_server.partition.partition_graph_bytes`) must produce
+/// identical bytes from the published graph JSON.
+pub fn partition_graph_bytes(
+    flops: &[u64],
+    in_size: &[u32],
+    whitelisted: &[u8],
+    edges: &[(u32, u32)],
+) -> Vec<u8> {
+    let mut out =
+        Vec::with_capacity(PARTITION_GRAPH_MAGIC.len() + 8 + flops.len() * 13 + edges.len() * 8);
+    out.extend_from_slice(PARTITION_GRAPH_MAGIC);
+    out.extend_from_slice(&(flops.len() as u32).to_le_bytes());
+    out.extend_from_slice(&(edges.len() as u32).to_le_bytes());
+    for i in 0..flops.len() {
+        out.extend_from_slice(&flops[i].to_le_bytes());
+        out.extend_from_slice(&in_size[i].to_le_bytes());
+        out.push(whitelisted[i]);
+    }
+    for &(s, d) in edges {
+        out.extend_from_slice(&s.to_le_bytes());
+        out.extend_from_slice(&d.to_le_bytes());
+    }
+    out
+}
+
+/// Layout of the partition program's public output bytes (88 bytes).
+pub const PARTITION_PUBLIC_OUTPUT_LEN: usize = 32 + 32 + 8 + 8 + 4 + 4;
+
+pub struct PartitionPublicOutputs {
+    pub auditor_nonce: [u8; 32],
+    pub graph_digest: [u8; 32],
+    pub cap_flops: u64,
+    pub cap_input: u64,
+    pub n_nodes: u32,
+    pub n_parts: u32,
+}
+
+impl PartitionPublicOutputs {
+    pub fn from_bytes(b: &[u8]) -> Option<Self> {
+        if b.len() != PARTITION_PUBLIC_OUTPUT_LEN {
+            return None;
+        }
+        let mut nonce = [0u8; 32];
+        nonce.copy_from_slice(&b[0..32]);
+        let mut graph_digest = [0u8; 32];
+        graph_digest.copy_from_slice(&b[32..64]);
+        let cap_flops = u64::from_le_bytes(b[64..72].try_into().ok()?);
+        let cap_input = u64::from_le_bytes(b[72..80].try_into().ok()?);
+        let n_nodes = u32::from_le_bytes(b[80..84].try_into().ok()?);
+        let n_parts = u32::from_le_bytes(b[84..88].try_into().ok()?);
+        Some(Self { auditor_nonce: nonce, graph_digest, cap_flops, cap_input, n_nodes, n_parts })
+    }
+}

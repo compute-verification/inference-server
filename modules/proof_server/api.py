@@ -33,6 +33,14 @@ from modules.proof_server.ledger import (
     pubkey_set_digest_bytes,
     recompute_root,
 )
+from modules.proof_server.partition import (
+    PartitionError,
+    check_partition,
+    graph_partition_digest,
+    partition_graph_bytes,
+    plan_partition,
+    sp1_input_json,
+)
 
 __all__ = [
     # ledger
@@ -52,6 +60,13 @@ __all__ = [
     # composite
     "WitnessRow",
     "assemble_witness",
+    # bounded-cost partition (sp1/partition-program)
+    "PartitionError",
+    "check_partition",
+    "graph_partition_digest",
+    "partition_graph_bytes",
+    "plan_partition",
+    "sp1_input_json",
 ]
 
 

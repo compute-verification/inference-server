@@ -10,6 +10,24 @@ the raw signature stays inside the developer trust boundary.
 (`ledger ⊆ signed-Merkle-log`). See `demos/proof-server/plan.md` for the
 demo design.
 
+**Second statement — bounded-cost partition.** Given a task graph (one node
+per forward pass, exact per-node FLOPs + input tokens + whitelist flags —
+the graphs `demos/proof-compare/build_all.py` emits), the
+`sp1/partition-program` guest proves: *there exists a partition of the graph
+into stages such that every dependency edge flows forward (the stages are
+executable in order), each stage's summed FLOPs are ≤ C, and each stage's
+summed non-whitelisted input tokens are ≤ S*. The partition is the private
+witness; public outputs are only (nonce, graph digest, C, S, n_nodes,
+n_parts). The graph's cost view is hashed **in-guest**
+(`taskgraph-partition-v1` canonical encoding, byte-identical between
+`partition.py` and `proof_server_lib`), so a verifier recomputes the digest
+from the published graphs.json scene and rejects any proof over different
+numbers. Whitelisted inputs (publicly-known constants, e.g. the coding
+agent's fixed task statement) cost 0 toward S — the whitelist never
+discounts FLOPs. Driver:
+`python3 demos/proof-compare/prove_partition.py --scene coding
+--cap-flops 5e13 --cap-input 2000 [--prove]`.
+
 **Wire framing.** The proof server is a proxy that the existing
 `demos/tap-protocol/servers/tap.py` (and friends) forward a copy of every
 `SignedEnvelope` to. The proof server holds the only Ed25519 keypair; the
@@ -42,7 +60,10 @@ modules/proof_server/
 ├── api.py             stable Python facade
 ├── ledger.py          binary SHA-256 Merkle tree over arbitrary JSON-dict rows
 ├── envelopes.py       Ed25519 helpers (keypair / sign / verify)
-└── sp1/               Rust SP1 program (guest) + host harness
+├── partition.py       bounded-cost partition: planner, checker, canonical encoding
+└── sp1/               Rust workspace: lib (shared types) +
+                       program/host (ledger statement) +
+                       partition-program/partition-host (partition statement)
 ```
 
 **Status.** Research prototype. v0 proves soundness over the published

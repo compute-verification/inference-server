@@ -1,5 +1,5 @@
 [workspace]
-members = ["lib", "program", "host"]
+members = ["lib", "program", "host", "partition-program", "partition-host"]
 resolver = "2"
 
 [workspace.dependencies]
