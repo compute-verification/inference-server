@@ -1,8 +1,8 @@
 # Inference Server
 
-An inference server with deterministic application and networking layers, built by the [Compute Verification Project](https://github.com/compute-verification) — a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware.
+This repository demonstrates a highly reproducible inference server: deterministic builds, tokens, and packets. It is built by the [Compute Verification Project](https://github.com/compute-verification), a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware.
 
-Given the same model weights, prompts, and config flags, two independent servers produce bitwise-identical token outputs. On top of that determinism the repo layers verification tooling: manifest-pinned workloads, run-bundle capture and replay, matmul attestation, proof of secure erasure, and deterministic network egress.
+Given the same model weights, prompts, and config flags, two independent servers produce bitwise-identical token outputs — and because egress frames are constructed by a simulated userspace TCP/IP stack, the packets on the wire are reproducible too. On top of that determinism sits the verification tooling: a *prover* serves manifest-pinned workloads and commits to every token it emits, an auditor can replay any challenged position, and simulated network taps let a *verifier* check the observed traffic against those commitments — alongside matmul attestation and proof of secure erasure.
 
 Licensed under [Apache-2.0](LICENSE).
 
