@@ -1,10 +1,14 @@
 # Deterministic Inference Server
 
-This repository demonstrates a highly reproducible inference server: deterministic builds, tokens, and packets. It is built by the [Compute Verification Project](https://github.com/compute-verification), a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware.
+This repository contains a demonstration of a deterministic inference server:
 
-Given the same model weights, prompts, and config flags, two independent servers produce bitwise-identical token outputs — and because egress frames are constructed by a simulated userspace TCP/IP stack, the packets on the wire are reproducible too. On top of that determinism sits the verification tooling: a *prover* serves manifest-pinned workloads and commits to every token it emits, an auditor can replay any challenged position, and simulated network taps let a *verifier* check the observed traffic against those commitments — alongside matmul attestation and proof of secure erasure.
+- **builds** are rendered deterministic via a hermetic Nix flake that compiles the full stack (vLLM, PyTorch, CUDA toolkit, Triton) from pinned sources, with model weights pinned to a Hugging Face commit and verified file-by-file against SHA256 digests
+- **tokens** are rendered deterministic via vLLM's batch-invariant kernels, deterministic cuBLAS (`CUBLAS_WORKSPACE_CONFIG`), eager execution (no CUDA graphs), and greedy decoding with a fixed seed
+- **network packets** are rendered deterministic via a simulated userspace TCP/IP stack — fixed MSS segmentation, software checksums, no offloads — so the frames on the wire are a pure function of the inference output
 
-Licensed under [Apache-2.0](LICENSE).
+This guarantees that individual inference requests can be bitwise reproduced at a later date, given the original hardware. In the future we will extend this with [Hawkeye](https://arxiv.org/abs/2603.20421)-style reproduction of GPU arithmetic, so that requests can be re-executed and audited on a CPU without the original hardware. We further demonstrate **proof of secure erasure**: the server fills GPU and host memory with verifiable noise and answers challenge–response rounds that prove the wipe actually happened.
+
+Built by the [Compute Verification Project](https://github.com/compute-verification), a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware. Licensed under [Apache-2.0](LICENSE).
 
 > **Status: research prototype.** The determinism results below were produced manually on H100/GH200 instances across millions of tokens; the hosted CI covers the CPU-side surface (unit/integration tests, schema gates, lint), not the GPU determinism gates. This is not a production-hardened serving stack — expect rough edges.
 
