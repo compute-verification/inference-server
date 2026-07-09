@@ -2,11 +2,11 @@
 
 This repository contains a demonstration of a deterministic inference server:
 
-- **builds** are rendered deterministic via a hermetic Nix flake that compiles the full stack (vLLM, PyTorch, CUDA toolkit, Triton) from pinned sources, with model weights pinned to a Hugging Face commit and verified file-by-file against SHA256 digests
-- **tokens** are rendered deterministic via vLLM's batch-invariant kernels, deterministic cuBLAS (`CUBLAS_WORKSPACE_CONFIG`), eager execution (no CUDA graphs), and greedy decoding with a fixed seed
-- **network packets** are rendered deterministic via a simulated userspace TCP/IP stack — fixed MSS segmentation, software checksums, no offloads — so the frames on the wire are a pure function of the inference output
+- **Builds** are rendered deterministic via a hermetic Nix flake that compiles vLLM, PyTorch, CUDA, and Triton from pinned sources, with model weights pinned to a Hugging Face commit and checked against per-file SHA256 digests
+- **Output tokens** are rendered deterministic via vLLM's batch-invariant kernels, deterministic cuBLAS kernels, eager execution, and greedy decoding with a fixed seed
+- **Network packets** are rendered deterministic via a custom userspace TCP/IP stack that builds frames as deterministic functions of payloads
 
-This guarantees that individual inference requests can be bitwise reproduced at a later date, given the original hardware. In the future we will extend this with [Hawkeye](https://arxiv.org/abs/2603.20421)-style reproduction of GPU arithmetic, so that requests can be re-executed and audited on a CPU without the original hardware. We further demonstrate **proof of secure erasure**: the server fills GPU and host memory with verifiable noise and answers challenge–response rounds that prove the wipe actually happened.
+This guarantees that individual inference requests can be bitwise reproduced at a later date, given the original hardware. In the future we will use [Hawkeye](https://arxiv.org/abs/2603.20421) so that requests can be re-executed on different hardware. We further demonstrate [proof of secure erasure](https://en.wikipedia.org/wiki/Proof_of_secure_erasure).
 
 Built by the [Compute Verification Project](https://github.com/compute-verification), a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware. Licensed under [Apache-2.0](LICENSE).
 
