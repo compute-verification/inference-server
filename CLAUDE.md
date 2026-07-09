@@ -26,7 +26,7 @@ python3 modules/inference/runner/main.py --manifest modules/inference/manifests/
 ## Code layout
 
 ```
-modules/                — Capability layer; each module physically owns its code + shared core/ + Pipeline
+modules/                — Each module physically owns its code + shared core/ + Pipeline
   build/                — Hermetic Nix runtime: builder/, lockfiles/, nix/ (flake.nix + flake.lock live at root)
   inference/            — Deterministic vLLM: server/, runner/, resolver/, capture/, manifest/ (model), manifests/ (data)
   network/              — networkdet/ (sim TCP/IP) + native/libnetdet/ (DPDK transmit)
@@ -34,7 +34,7 @@ modules/                — Capability layer; each module physically owns its co
   memory/               — PoSE memory wipe + erasure attestation (pose/ sub-package + api.py)
   utils/                — provisioning/replay helpers (re-exports core/common)
   core/                 — Shared: common/ (canonical JSON, digests, schema validation, HF) + schemas/ (JSON Schema defs)
-workflows/              — Recipe book: runnable compositions of modules (e.g. deterministic_inference_server.py)
+workflows/              — Runnable compositions of modules (e.g. deterministic_inference_server.py)
 tests/                  — unit/, integration/, e2e/, determinism/, modules/, fixtures/
 scripts/ci/             — CI scripts (schema gates, conformance checks, determinism gates d0–d6)
 scripts/                — General utilities (reproduce.sh); scripts/lambda/ (lambda CLI)
@@ -44,15 +44,15 @@ tests/conformance/      — Machine-readable spec catalog + release blockers (re
 flake.nix, flake.lock   — Hermetic build entrypoint + pin (at root: the flake's src=self packages repo-wide code and callers invoke `.#`)
 ```
 
-## Capability modules and workflows
+## Modules and workflows
 
-The repo is organized **by function**. Each `modules/<capability>/` **physically
+The repo is organized **by function**. Each `modules/<module>/` **physically
 owns its code** — the former `pkg/` and `cmd/` top-level trees were consolidated
 into the modules, and `core/` holds the shared `common` helpers plus the JSON
-Schema `schemas`. A capability need not be a Python package (build is nix +
+Schema `schemas`. A module need not be a Python package (build is nix +
 shell); the contract is a documented `README.md`, and for Python ones a small
 `api.py`. `workflows/` composes modules via `modules.Pipeline` into runnable
-recipes. New modules: add a `README.md` (Purpose · Interface · Artifacts ·
+scenarios. New modules: add a `README.md` (Purpose · Interface · Artifacts ·
 Requirements · Example) and a smoke test in `tests/modules/`. Design and
 implementation plans live on the `experiments` branch.
 
@@ -75,7 +75,7 @@ Each experiment folder on the `experiments` branch should contain:
 - `EXPERIMENT_LOG.md` — append-only log of commands, milestones, roadblocks, and results
 - `scripts/`, `data/`, `reports/`, `figures/`
 
-Do NOT scatter experiment artifacts across `scripts/`, `results/`, `docs/reports/`, or other top-level directories. If code is reusable across experiments, put it in the relevant `modules/<capability>/` (or `modules/core/` if shared) with tests in `tests/unit/`.
+Do NOT scatter experiment artifacts across `scripts/`, `results/`, `docs/reports/`, or other top-level directories. If code is reusable across experiments, put it in the relevant `modules/<module>/` (or `modules/core/` if shared) with tests in `tests/unit/`.
 
 ## Determinism flags (the "c3" config)
 

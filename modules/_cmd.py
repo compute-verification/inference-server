@@ -2,7 +2,7 @@
 
 ``cmd/*/main.py`` are standalone scripts (no ``__init__.py``), so we load them
 by file path with ``importlib`` rather than importing ``cmd`` as a package.
-This lets the capability modules and the :class:`~modules.pipeline.Pipeline`
+This lets the modules and the :class:`~modules.pipeline.Pipeline`
 compose the stages as plain Python calls (dict in / dict out) instead of
 shelling out — see the repo-modularization plan on the ``experiments`` branch.
 

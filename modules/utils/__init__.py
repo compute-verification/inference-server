@@ -1,4 +1,4 @@
-"""Utilities capability — canonical JSON, digests, schema validation."""
+"""Utilities module — canonical JSON, digests, schema validation."""
 from modules.utils.api import (
     ValidationError,
     canonical_json_bytes,

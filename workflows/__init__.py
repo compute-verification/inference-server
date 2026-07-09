@@ -1,1 +1,1 @@
-"""The recipe book — runnable workflows composed from capability modules."""
+"""Runnable workflows composed from the modules."""

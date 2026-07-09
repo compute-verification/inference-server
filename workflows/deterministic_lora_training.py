@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recipe: deterministic LoRA training.
+"""Workflow: deterministic LoRA training.
 
 Composes build determinism (a hermetic closure) and the c3 inference config
 into a reproducible LoRA-training environment, then runs a small but

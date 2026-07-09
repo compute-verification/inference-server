@@ -54,7 +54,7 @@ flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packa
 
 ## Results
 
-Cross-server determinism, measured manually on two independent NVIDIA GH200 480GB instances (Lambda Cloud). Every comparison matched bitwise:
+These results come from a manual cross-server run on two independent NVIDIA GH200 480GB instances on Lambda Cloud. Every cross-server comparison matched bitwise:
 
 | Model | Type | Repeated | Diverse | Tokens |
 |-------|------|----------|---------|--------|
@@ -62,7 +62,7 @@ Cross-server determinism, measured manually on two independent NVIDIA GH200 480G
 | Qwen3-30B-A3B | Mixture of Experts | 20/20 match | 34/34 match | 2.0M |
 | Mistral-7B-Instruct-v0.3 | Dense transformer | 20/20 match | 34/34 match | 2.0M |
 
-Each chunk is 30,000 tokens of greedy decoding (temperature=0). Same container image on both servers, same seed, same config. The scripts used to produce these runs live under `experiments/single-node-determinism/` on the [`experiments` branch](../../tree/experiments).
+Each chunk is 30,000 tokens of greedy decoding (temperature=0). Both servers ran the same container image with the same seed and the same config. The scripts used to produce these runs live under `experiments/single-node-determinism/` on the [`experiments` branch](../../tree/experiments).
 
 ## Architecture
 
@@ -185,9 +185,11 @@ manifest.v1 ──resolve──▶ lockfile.v1 ──build──▶ + closure di
                                                                        └──verify──▶ verify_report.v1
 ```
 
-Each stage is a standalone CLI (`modules/inference/resolver/main.py`,
+Each stage already exists as a standalone CLI (`modules/inference/resolver/main.py`,
 `modules/build/builder/main.py`, etc.). [`modules.Pipeline`](modules/pipeline.py)
-chains them in-process:
+is a thin wrapper that chains them in-process — each method calls the same code
+the per-stage CLI runs, holds the intermediate artifact on the object, and
+returns `self`:
 
 ```python
 from modules import Pipeline
@@ -200,8 +202,9 @@ report = (Pipeline.from_manifest("modules/inference/manifests/qwen3-1.7b.manifes
 assert report["status"] == "conformant"
 ```
 
-A **workflow** in [`workflows/`](workflows/) is a ~60-line Python script that
-uses `Pipeline` to compose a named scenario, wrapped in an `argparse` CLI:
+A **workflow** in [`workflows/`](workflows/) is just a Python file that uses
+`Pipeline` (plus any other module helpers it needs) to compose a named
+scenario, wrapped in a small `argparse` CLI. Examples:
 
 - `deterministic_inference_server.py` — the snippet above + an
   `egress_frames()` check that the network output is also reproducible.
@@ -212,9 +215,11 @@ uses `Pipeline` to compose a named scenario, wrapped in an `argparse` CLI:
 
 ## Build & run
 
-The closure compiles vLLM and PyTorch from source; the first build takes 30–60
-minutes on a large machine. [`.github/workflows/nix-build.yml`](.github/workflows/nix-build.yml)
-runs the same build in CI, triggered manually.
+Building from this checkout is the canonical, reproducible path. The full
+closure compiles vLLM and PyTorch from source, so plan on 30–60 minutes and a
+large machine for the first build.
+[`.github/workflows/nix-build.yml`](.github/workflows/nix-build.yml) runs the
+same build in CI, triggered manually.
 
 ```bash
 # Build the hermetic runtime closure

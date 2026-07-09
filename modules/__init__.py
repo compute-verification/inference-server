@@ -1,9 +1,9 @@
-"""Capability modules + the composition pipeline.
+"""Modules + the composition pipeline.
 
 This is the curated, function-oriented surface of the deterministic serving
-stack. Each subdirectory is one capability (build, inference, network, memory,
+stack. Each subdirectory is one module (build, inference, network, memory,
 attestation, utils) with a documented interface; :class:`Pipeline` composes
-them. See ``modules/README.md`` for the capability map.
+them. See ``modules/README.md`` for the module map.
 """
 from modules.pipeline import Pipeline
 

@@ -3,7 +3,7 @@
 Operational scripts that take the repo from "code on disk" to "running on a real
 GPU box." This is the only path that exercises **GPU bitwise determinism** and
 computes the **real Nix closure pin** — GitHub CI is CPU-only and proves none of
-that (see [`workflows/`](../workflows/) for the CPU recipes).
+that (see [`workflows/`](../workflows/) for the CPU-only workflows).
 
 Two targets:
 

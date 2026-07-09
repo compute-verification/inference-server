@@ -1,11 +1,11 @@
-# Capability modules
+# Modules
 
 The deterministic serving stack, organized **by function**. Each subdirectory is
-one capability that **physically owns its code**, with a documented interface; the
-[`Pipeline`](pipeline.py) composes them, and [`workflows/`](../workflows/) is the
-recipe book of runnable compositions.
+one module that **physically owns its code**, with a documented interface; the
+[`Pipeline`](pipeline.py) composes them, and [`workflows/`](../workflows/) holds
+the runnable compositions.
 
-> Each capability is **self-contained**: its library code, entry points, schemas,
+> Each module is **self-contained**: its library code, entry points, schemas,
 > and data live inside its own directory. The one shared layer is [`core/`](core/)
 > (canonical JSON / digests + the JSON Schema contracts), used by every module. A
 > few assets stay at the repo root for a concrete toolchain reason — `flake.nix`
@@ -13,9 +13,9 @@ recipe book of runnable compositions.
 > original re-export *facade* layer was physically consolidated into these modules
 > (see the repo-modularization plan on the `experiments` branch).
 
-## The capability map
+## The module map
 
-| Capability | What it does | Interface | Code lives in |
+| Module | What it does | Interface | Code lives in |
 |---|---|---|---|
 | [**build**](build/) | Hermetic, reproducible runtime + OCI image | `nix build .#oci` · `modules.build` | `build/builder/`, `build/lockfiles/`, `build/nix/` (+ `flake.nix`, `flake.lock` at root) |
 | [**inference**](inference/) | Bitwise-deterministic vLLM (the c3 config) | `modules.inference` | `inference/{server,runner,resolver,capture}/`, `inference/manifest/`, `inference/manifests/` |
@@ -25,13 +25,13 @@ recipe book of runnable compositions.
 | [**utils**](utils/) | Provisioning, replay server, helpers | `modules.utils.canonical_json_bytes(...)` | re-exports `core/common`; `scripts/deploy/` |
 | [**core**](core/) | Shared: canonical JSON / digests + schema contracts | `modules.core.common` | `core/common/`, `core/schemas/` |
 
-A capability need not be a Python package — `build` is nix + shell. The contract
+A module need not be a Python package — `build` is nix + shell. The contract
 is a **documented interface**, not a uniform implementation.
 
 ## Asset ownership
 
 Every tracked asset has an owning module, is **shared core**, or is **repo-level**
-(project-wide). Nothing is orphaned. Capability code physically lives inside the
+(project-wide). Nothing is orphaned. Module code physically lives inside the
 module directory; the only exceptions stay put for a concrete toolchain reason,
 noted below.
 
@@ -46,11 +46,11 @@ noted below.
 | `common/`, `schemas/` | core (shared) | `modules/core/` — used across all modules; schemas loaded by `core/common` |
 | PoSE `pose` package | memory | `modules/memory/pose/` |
 | `scripts/deploy/`, `scripts/lambda/lambda_cli.py` | utils | under `scripts/` (deploy scripts + Lambda CLI) |
-| `workflows/` | shared (recipe book) | `workflows/` — module compositions via `modules.Pipeline` |
-| `tests/` | per-module + shared | `tests/modules/` per capability; `unit/integration/e2e/determinism` cover the pipeline |
+| `workflows/` | shared | `workflows/` — module compositions via `modules.Pipeline` |
+| `tests/` | per-module + shared | `tests/modules/` per module; `unit/integration/e2e/determinism` cover the pipeline |
 | `scripts/`, `scripts/ci/` | shared / platform | repo root |
 | `demos/{e2e-audit, prover-verifier}/` | inference / attestation | `demos/` — runnable scenarios (audit replay, prover↔verifier protocol) referenced by `scripts/demo.sh` and the README. Research experiments live on the `experiments` branch. |
-| `README.md`, `CLAUDE.md`, `LICENSE`, `CITATION.cff`, `.gitignore`, `.github/`, `.claude/` | repo-level | repo root |
+| `README.md`, `CLAUDE.md`, `LICENSE`, `CITATION.cff`, `.gitignore`, `.github/` | repo-level | repo root |
 
 ## The unified interface
 
@@ -79,12 +79,12 @@ report = (Pipeline.from_manifest("modules/inference/manifests/qwen3-1.7b.manifes
 
 ## Status
 
-All capability code is **physically consolidated** under `modules/<capability>/`
+All module code is **physically consolidated** under `modules/<module>/`
 — the former `pkg/` and `cmd/` top-level trees are gone, and `core/` holds the
-shared `common` helpers plus the JSON Schema `schemas`. Each capability has a
+shared `common` helpers plus the JSON Schema `schemas`. Each module has a
 Python facade (`api.py`) plus the **Pipeline**. `build`'s nix wrappers need Nix;
 `memory` re-exports the separately-deployed `pose` package from its canonical
 location (not relocated — that would break the remote `uv` install workflow).
-Verified on CPU via `tests/{unit,integration,modules}`. Recipe book:
+Verified on CPU via `tests/{unit,integration,modules}`. Workflows:
 `deterministic_inference_server`, `deterministic_lora_training`,
 `verified_inference`.

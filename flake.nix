@@ -319,7 +319,7 @@
           dontBuild = true;
           installPhase = ''
             mkdir -p $out
-            # Capability layer holds all runtime code plus schemas (modules/core/schemas)
+            # Modules hold all runtime code plus schemas (modules/core/schemas)
             # and model manifests (modules/inference/manifests).
             cp -r modules $out/modules
             cp -r workflows $out/workflows

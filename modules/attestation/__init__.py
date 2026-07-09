@@ -1,4 +1,4 @@
-"""Attestation capability — matmul / token / replay verification."""
+"""Attestation module — matmul / token / replay verification."""
 from modules.attestation.api import (
     AttestationReport,
     Challenge,

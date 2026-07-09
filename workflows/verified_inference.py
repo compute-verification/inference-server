@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recipe: verified inference.
+"""Workflow: verified inference.
 
 Composes inference determinism (a reproducible run) with attestation (Freivalds
 matmul correctness checks against the manifest-pinned model's real weights),
@@ -14,7 +14,7 @@ wiring smoke test — **not** a determinism proof.
 ## What the attestation actually proves
 
 For each of four weight tensors (q_proj, mlp_gate, mlp_down, o_proj from layer 0
-of the manifest's pinned Qwen3-1.7B), the recipe:
+of the manifest's pinned Qwen3-1.7B), the workflow:
 
   1. Loads the **real** weight tensor ``W`` from the model checkpoint (via
      huggingface_hub, hits the local HF cache after the first download).
@@ -35,7 +35,7 @@ produced the run's tokens AND be able to compute matmuls correctly.
 This is **not** yet a streaming attestation of the actual matmuls the inference
 engine computed. ``A`` is a per-run-seeded synthetic activation, not a hidden
 state captured from the run itself. Closing that gap needs the inference runner
-to emit per-matmul records into the run bundle and the recipe to sample those —
+to emit per-matmul records into the run bundle and the workflow to sample those —
 a non-trivial vLLM-hook change, deferred. The docstring stops there to stay
 honest.
 """
@@ -145,7 +145,7 @@ def _model_id_from_manifest(manifest: dict[str, Any]) -> str:
 def _load_layer0_weights(manifest: dict[str, Any]) -> dict[str, "torch.Tensor"]:  # noqa: F821
     """Download (cache) the model and return the four layer-0 weight tensors.
 
-    Imports torch / safetensors / huggingface_hub lazily so the recipe still
+    Imports torch / safetensors / huggingface_hub lazily so the workflow still
     imports on a CPU-only dev box.
     """
     import torch  # noqa: F401

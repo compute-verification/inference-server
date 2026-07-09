@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Recipe: a deterministic inference server.
+"""Workflow: a deterministic inference server.
 
-Composes three capability modules into one reproducible run, then proves two
+Composes three modules into one reproducible run, then proves two
 independent runs are bitwise-identical:
 
   * build determinism   — resolve + hermetic closure (Pipeline.resolve/.build)

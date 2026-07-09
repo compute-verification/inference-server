@@ -1,4 +1,4 @@
-"""Smoke tests for the capability modules + recipe-book workflows.
+"""Smoke tests for the modules + workflows.
 
 All mock / no-GPU. Mirrors the proven d2 offline flow
 (resolve -> build -> run x2 -> verify == conformant), but through the
