@@ -12,7 +12,7 @@ set -euo pipefail
 source "$(dirname "$0")/common.sh"
 require_cmd nix
 
-REGISTRY="${REGISTRY:-ghcr.io/compute-verification/inference-server}"
+REGISTRY="${REGISTRY:-ghcr.io/compute-verification/deterministic-inference-server}"
 PUSH=false
 
 while [[ $# -gt 0 ]]; do

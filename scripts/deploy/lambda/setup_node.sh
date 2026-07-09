@@ -11,7 +11,7 @@ echo "=== Setting up node ${IP} ==="
 # Sync repo
 echo "--- Syncing repo ---"
 rsync -az --exclude '.git' --exclude '__pycache__' --exclude '.pytest_cache' \
-    "${REPO_ROOT}/" "ubuntu@${IP}:/home/ubuntu/inference-server/"
+    "${REPO_ROOT}/" "ubuntu@${IP}:/home/ubuntu/deterministic-inference-server/"
 
 # Remote setup
 ssh -o StrictHostKeyChecking=no "ubuntu@${IP}" bash -s <<'REMOTE'

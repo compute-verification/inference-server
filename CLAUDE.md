@@ -1,4 +1,4 @@
-# Inference Server
+# Deterministic Inference Server
 
 ## Project overview
 

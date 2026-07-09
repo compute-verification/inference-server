@@ -4,7 +4,7 @@
 # must fetch it dynamically.
 set -euo pipefail
 
-IMAGE_REPO="${IMAGE_REPO:-compute-verification/inference-server}"
+IMAGE_REPO="${IMAGE_REPO:-compute-verification/deterministic-inference-server}"
 IMAGE_TAG="${IMAGE_TAG:-vast-test}"
 
 TOK=$(gh auth token)

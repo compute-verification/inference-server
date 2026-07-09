@@ -24,9 +24,9 @@ pip install --upgrade pip setuptools wheel
 pip install "vllm>=0.8.0" jsonschema requests huggingface_hub
 
 echo "--- Cloning repo ---"
-if [ ! -d /home/ubuntu/inference-server ]; then
-    git clone https://github.com/compute-verification/inference-server.git \
-        /home/ubuntu/inference-server
+if [ ! -d /home/ubuntu/deterministic-inference-server ]; then
+    git clone https://github.com/compute-verification/deterministic-inference-server.git \
+        /home/ubuntu/deterministic-inference-server
 fi
 
 echo "--- Pre-downloading Qwen3-1.7B ---"

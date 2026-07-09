@@ -291,7 +291,7 @@ One-command demo. Runs on the laptop. Concrete sequence:
    num_gpus=1 cuda_vers>=12.0 reliability>0.90 inet_down>300
    disk_space>80' -o 'dph'` and grab the cheapest `id`. Loop if none.
 3. **Create instance** — `vastai create instance <id> --image
-   ghcr.io/compute-verification/inference-server:vast-test --disk 80 --env
+   ghcr.io/compute-verification/deterministic-inference-server:vast-test --disk 80 --env
    "-p 22:22 -p 8000:8000 -e PUBKEY_B64=$(cat ~/.ssh/id_ed25519.pub |
    base64 -w0) -e SKIP_SERVER=1" --entrypoint $ENTRY --args`. Only port
    8000 (the Gateway) is exposed publicly; Tap/Host/Recomp stay on

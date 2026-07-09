@@ -1,5 +1,5 @@
 [project]
-name = "inference-server"
+name = "deterministic-inference-server"
 version = "0.1.0"
 description = "Bitwise-deterministic LLM inference — CPU/test dependency set."
 requires-python = ">=3.10"

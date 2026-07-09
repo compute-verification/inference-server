@@ -172,7 +172,7 @@ class TestBug4RelativeSchemaPath(unittest.TestCase):
 
 class TestBug5OciImageCmd(unittest.TestCase):
     """Bug #5: modules/build/nix/images/runtime-image.nix hardcodes /app/modules/inference/server/main.py
-    but the flake puts code under /nix/store/...-inference-server/.
+    but the flake puts code under /nix/store/...-deterministic-inference-server/.
 
     We can't test the actual Nix build here, but we can verify the paths
     are inconsistent between the two nix files.
@@ -191,7 +191,7 @@ class TestBug5OciImageCmd(unittest.TestCase):
             self.fail(
                 "Bug #5 confirmed: modules/build/nix/images/runtime-image.nix uses '/app/cmd/...' "
                 "but flake.nix puts code at '${appSrc}/cmd/...' "
-                "(/nix/store/...-inference-server/cmd/...). "
+                "(/nix/store/...-deterministic-inference-server/cmd/...). "
                 "The legacy image Cmd would fail with file-not-found."
             )
 

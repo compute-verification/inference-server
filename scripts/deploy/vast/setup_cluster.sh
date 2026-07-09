@@ -83,4 +83,4 @@ for i in "${!WORKERS[@]}"; do
 done
 echo ""
 echo "Run the experiment with:"
-echo "  ssh -p PORT root@HOST 'cd /root/inference-server && ./scripts/ci/d6_multinode_determinism.sh'"
+echo "  ssh -p PORT root@HOST 'cd /root/deterministic-inference-server && ./scripts/ci/d6_multinode_determinism.sh'"

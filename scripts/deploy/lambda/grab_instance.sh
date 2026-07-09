@@ -5,7 +5,7 @@ set -euo pipefail
 
 WANTED_TYPES=("gpu_1x_gh200" "gpu_1x_h100_pcie" "gpu_1x_h100_sxm5")
 SSH_KEY_NAME="${SSH_KEY_NAME:?Set SSH_KEY_NAME to the name of an SSH key registered with your Lambda Cloud account}"
-INSTANCE_NAME="${INSTANCE_NAME:-inference-server-bi}"
+INSTANCE_NAME="${INSTANCE_NAME:-deterministic-inference-server-bi}"
 POLL_INTERVAL=30
 
 echo "Polling Lambda Cloud for available instances: ${WANTED_TYPES[*]}"

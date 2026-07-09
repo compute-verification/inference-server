@@ -254,7 +254,7 @@ def capture_to_bundle(
         "attestations": [
             {
                 "attestation_type": "run_provenance",
-                "signer": "capture@inference-server",
+                "signer": "capture@deterministic-inference-server",
                 "statement_digest": sha256_prefixed(canonical_json_bytes({
                     "run_id": run_id,
                     "capture_entries": len(entries),

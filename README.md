@@ -1,4 +1,4 @@
-# Inference Server
+# Deterministic Inference Server
 
 This repository demonstrates a highly reproducible inference server: deterministic builds, tokens, and packets. It is built by the [Compute Verification Project](https://github.com/compute-verification), a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware.
 
@@ -111,8 +111,8 @@ Each chunk is 30,000 tokens of greedy decoding (temperature=0). Same container i
 Bring up an NVIDIA H100 instance with the standard CUDA 12.8 AMI (Lambda Cloud's `gpu_1x_h100_sxm5` and `gpu_1x_h100_pcie` work as-is; GH200 also works), then:
 
 ```bash
-git clone https://github.com/compute-verification/inference-server
-cd inference-server
+git clone https://github.com/compute-verification/deterministic-inference-server
+cd deterministic-inference-server
 ./scripts/demo.sh
 ```
 
@@ -231,7 +231,7 @@ manually-triggerable CI build).
 # Build the hermetic runtime closure
 nix build .#closure
 
-# Build the OCI image — produces `inference-server-runtime:<git-rev>`
+# Build the OCI image — produces `deterministic-inference-server-runtime:<git-rev>`
 nix build .#oci
 docker load < result
 
@@ -239,7 +239,7 @@ docker load < result
 docker run -d --name vllm-server --gpus all --privileged \
   -e NVIDIA_DRIVER_CAPABILITIES=all \
   -v "$PWD:/workspace" -p 8000:8000 \
-  inference-server-runtime:dev \
+  deterministic-inference-server-runtime:dev \
   --manifest /workspace/demos/e2e-audit/scripts/smoke.manifest.json \
   --skip-boot-validation
 ```

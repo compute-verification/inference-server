@@ -155,7 +155,7 @@ def resolve_manifest_to_lockfile(
         "attestations": [
             {
                 "attestation_type": "resolver_provenance",
-                "signer": "resolver@inference-server",
+                "signer": "resolver@deterministic-inference-server",
                 "statement_digest": sha256_prefixed(canonical_json_bytes({"artifacts": artifacts})),
                 "timestamp": deterministic_timestamp,
             }

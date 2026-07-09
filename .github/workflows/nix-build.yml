@@ -56,7 +56,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u ${{ github.actor }} --password-stdin
-          TAG="ghcr.io/${{ github.repository_owner }}/inference-server:$(git rev-parse --short HEAD)"
+          TAG="ghcr.io/${{ github.repository_owner }}/deterministic-inference-server:$(git rev-parse --short HEAD)"
           skopeo copy "docker-archive:${OCI_PATH}" "docker://${TAG}"
           echo "Pushed: ${TAG}"
 

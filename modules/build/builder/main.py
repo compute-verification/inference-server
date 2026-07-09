@@ -361,7 +361,7 @@ def build_runtime(
     attestations.append(
         {
             "attestation_type": "build_provenance",
-            "signer": "builder@inference-server",
+            "signer": "builder@deterministic-inference-server",
             "statement_digest": sha256_prefixed(canonical_json_bytes(statement)),
             "timestamp": deterministic_timestamp,
         }

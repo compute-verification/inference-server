@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below. A manuscript describing this work is in preparation; this file will be updated with the paper citation once it is available."
-title: "Inference Server: Bitwise-Reproducible LLM Inference Across Independent Servers"
+title: "Deterministic Inference Server: Bitwise-Reproducible LLM Inference Across Independent Servers"
 type: software
 authors:
   - family-names: "Reuter"
@@ -11,5 +11,5 @@ authors:
   - family-names: "Ng"
     given-names: "Jonathan"
     email: "jonathan.ng1@gmail.com"
-repository-code: "https://github.com/compute-verification/inference-server"
+repository-code: "https://github.com/compute-verification/deterministic-inference-server"
 license: Apache-2.0
