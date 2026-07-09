@@ -10,13 +10,12 @@ This guarantees that individual inference requests can be bitwise reproduced at 
 
 Built by the [Compute Verification Project](https://github.com/compute-verification), a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware. Licensed under [Apache-2.0](LICENSE).
 
-> **Status: research prototype.** The determinism results below were produced manually on H100/GH200 instances across millions of tokens; the hosted CI covers the CPU-side surface (unit/integration tests, schema gates, lint), not the GPU determinism gates. This is not a production-hardened serving stack — expect rough edges.
+> **Status: research prototype.** The determinism results below were produced manually on H100/GH200 instances. Hosted CI runs the CPU-side tests, schema gates, and lint; the GPU determinism gates are run manually.
 
 ## Capabilities & layout
 
-The stack is organized **by function**. Each capability has a documented
-interface ([`modules/`](modules/)). [`workflows/`](workflows/) is the recipe book
-that composes them.
+Each capability lives in [`modules/`](modules/) with a documented interface.
+[`workflows/`](workflows/) composes them into runnable scenarios.
 
 | Capability | What it does | Start here |
 |---|---|---|
@@ -48,7 +47,7 @@ modules/                Capability layer — each module owns its code, plus sha
   utils/                Provisioning / replay helpers (re-exports core/common)
   core/                 Shared: common/ (canonical JSON, SHA256, schema validation, HF resolution)
                         + schemas/ (JSON Schema contracts: manifest, lockfile, run_bundle, verify_report, attestation/replay)
-workflows/              Recipe book — runnable compositions of the modules
+workflows/              Runnable compositions of the modules
 demos/                  End-to-end scenarios: e2e-audit (the scripts/demo.sh path), prover-verifier (the protocol demo). Research experiments live on the `experiments` branch.
 scripts/deploy/         Lambda / vast / warden provisioning (utils-owned)
 tests/conformance/      Spec conformance catalog + release blockers (read by CI)
@@ -57,7 +56,7 @@ flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packa
 
 ## Results
 
-Reported results from a manual cross-server run on two independent NVIDIA GH200 480GB instances on Lambda Cloud — every cross-server comparison matched bitwise:
+Cross-server determinism, measured manually on two independent NVIDIA GH200 480GB instances (Lambda Cloud). Every comparison matched bitwise:
 
 | Model | Type | Repeated | Diverse | Tokens |
 |-------|------|----------|---------|--------|
@@ -133,10 +132,10 @@ Requirements:
 - ~5 GB free GPU memory (Qwen3-1.7B in bf16)
 - Outbound internet for the Hugging Face download
 
-### No GPU? Run the mock pipeline (wiring check)
+### Mock pipeline (no GPU)
 
-Install the small CPU-only deps, then run the artifact spine on the mock backend —
-a wiring check (no model download, no network), **not** a determinism proof:
+Runs the pipeline against a mock backend. No GPU, no model download; this checks
+wiring only, not determinism:
 
 ```bash
 uv sync   # installs the pinned CPU/test deps from uv.lock
@@ -151,8 +150,7 @@ tmp=$(mktemp -d)
 # (Add --resolve-hf to the resolver to re-resolve revisions against live HF; needs network + huggingface_hub.)
 ```
 
-Or compose the same spine in a few lines via a recipe — see
-[`workflows/`](workflows/).
+The same pipeline can be composed in Python; see [`workflows/`](workflows/).
 
 ## How It Works
 
@@ -181,7 +179,7 @@ Or compose the same spine in a few lines via a recipe — see
 
 ### Workflows & the Pipeline
 
-Every recipe walks the same **artifact spine** — four stages, four named artifacts:
+Every workflow walks the same four stages, producing four named artifacts:
 
 ```
 manifest.v1 ──resolve──▶ lockfile.v1 ──build──▶ + closure digest
@@ -191,11 +189,9 @@ manifest.v1 ──resolve──▶ lockfile.v1 ──build──▶ + closure di
                                                                        └──verify──▶ verify_report.v1
 ```
 
-Each stage already exists as a standalone CLI (`modules/inference/resolver/main.py`,
+Each stage is a standalone CLI (`modules/inference/resolver/main.py`,
 `modules/build/builder/main.py`, etc.). [`modules.Pipeline`](modules/pipeline.py)
-is a thin fluent wrapper that chains them in-process — each method calls the
-same code the per-stage CLI runs, holds the intermediate artifact on the object,
-and returns `self`:
+chains them in-process:
 
 ```python
 from modules import Pipeline
@@ -208,28 +204,21 @@ report = (Pipeline.from_manifest("modules/inference/manifests/qwen3-1.7b.manifes
 assert report["status"] == "conformant"
 ```
 
-A **workflow** in [`workflows/`](workflows/) is just a Python file that uses
-`Pipeline` (plus any other module helpers it needs) to compose a *named
-scenario*, wrapped in a small `argparse` CLI. Examples:
+A **workflow** in [`workflows/`](workflows/) is a ~60-line Python script that
+uses `Pipeline` to compose a named scenario, wrapped in an `argparse` CLI:
 
 - `deterministic_inference_server.py` — the snippet above + an
   `egress_frames()` check that the network output is also reproducible.
 - `verified_inference.py` — adds a matmul attestation pass on top of the run.
 - `deterministic_lora_training.py` — the same shape, for LoRA fine-tunes.
 
-So the layering is: spine (the CLIs) ▸ `Pipeline` (the chainer) ▸ workflows
-(named recipes that use the chainer). "Workflow" here is much more modest than
-in Airflow / GitHub Actions — it's a ~60-line script, not a DAG orchestrator.
-
 **Demo:** [Prover ↔ Verifier protocol](demos/prover-verifier/reports/memo.md) — wire-protocol demo that detects hidden training and exfiltration from external evidence alone. CPU-only; `cd demos/prover-verifier && ./demo.sh --quick`.
 
 ## Build & run
 
-Building from this checkout is the canonical, reproducible path. The full
-closure compiles vLLM and PyTorch from source, so plan on 30–60 minutes and a
-beefy machine for the first build (see
-[`.github/workflows/nix-build.yml`](.github/workflows/nix-build.yml) for a
-manually-triggerable CI build).
+The closure compiles vLLM and PyTorch from source; the first build takes 30–60
+minutes on a large machine. [`.github/workflows/nix-build.yml`](.github/workflows/nix-build.yml)
+runs the same build in CI, triggered manually.
 
 ```bash
 # Build the hermetic runtime closure
