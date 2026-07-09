@@ -8,16 +8,14 @@ This repository contains a demonstration of a deterministic inference server:
 
 This guarantees that individual inference requests can be bitwise reproduced at a later date, given the original hardware. In the future we will use [Hawkeye](https://arxiv.org/abs/2603.20421) so that requests can be re-executed on different hardware. We further demonstrate [proof of secure erasure](https://en.wikipedia.org/wiki/Proof_of_secure_erasure).
 
-Built by the [Compute Verification Project](https://github.com/compute-verification), a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware. Licensed under [Apache-2.0](LICENSE).
+Licensed under [Apache-2.0](LICENSE).
 
-> **Status: research prototype.** The determinism results below were produced manually on H100/GH200 instances. Hosted CI runs the CPU-side tests, schema gates, and lint; the GPU determinism gates are run manually.
+## Modules & layout
 
-## Capabilities & layout
+Each module lives in [`modules/`](modules/); [`workflows/`](workflows/)
+composes them into runnable scenarios.
 
-Each capability lives in [`modules/`](modules/) with a documented interface.
-[`workflows/`](workflows/) composes them into runnable scenarios.
-
-| Capability | What it does | Start here |
+| Module | What it does | Start here |
 |---|---|---|
 | [build](modules/build/) | Hermetic, reproducible runtime + OCI image | `nix build .#oci` |
 | [inference](modules/inference/) | Bitwise-deterministic vLLM (the c3 config) | `modules/inference/` |
@@ -26,13 +24,13 @@ Each capability lives in [`modules/`](modules/) with a documented interface.
 | [attestation](modules/attestation/) | Matmul / token / replay verification | `modules/attestation/verifier`, `modules/attestation/freivalds` |
 | [utils](modules/utils/) | Provisioning, replay server, helpers | `scripts/deploy/`, `scripts/lambda/lambda_cli.py` |
 
-See the [capability map](modules/README.md). Design and implementation plans
-live on the `experiments` branch.
+See [`modules/README.md`](modules/README.md) for the full map. Design and
+implementation plans live on the `experiments` branch.
 
 ### Repository layout
 
 ```
-modules/                Capability layer — each module owns its code, plus shared core/ + Pipeline
+modules/                Each module owns its code, plus shared core/ + Pipeline
   build/                Hermetic runtime: builder/ + lockfiles/ + nix/   (flake.nix + flake.lock live at root)
   inference/            Deterministic vLLM — the c3 config
     server/             Proxy server with POST/GET /manifest endpoint
