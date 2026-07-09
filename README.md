@@ -4,8 +4,7 @@ An inference server with deterministic application and networking layers, built 
 
 Given the same model weights, prompts, and config flags, two independent servers produce bitwise-identical token outputs. On top of that determinism the repo layers verification tooling: manifest-pinned workloads, run-bundle capture and replay, matmul attestation, proof of secure erasure, and deterministic network egress.
 
-Authors: Daniel Reuter, Luke Marks, and Jonathan Ng.
-Contact: Daniel Reuter (dreuter14@gmail.com). Licensed under [Apache-2.0](LICENSE).
+Licensed under [Apache-2.0](LICENSE).
 
 > **Status: research prototype.** The determinism results below were produced manually on H100/GH200 instances across millions of tokens; the hosted CI covers the CPU-side surface (unit/integration tests, schema gates, lint), not the GPU determinism gates. This is not a production-hardened serving stack — expect rough edges.
 
