@@ -15,11 +15,11 @@ Three targets:
 
 ## `lambda/` — single node
 
-Prereqs: `LAMBDALABS_API_KEY` in the env and an SSH key named `macbook 2025`
-registered on Lambda. Typical flow:
+Prereqs: `LAMBDALABS_API_KEY` in the env and `SSH_KEY_NAME` set to the name of
+an SSH key registered on Lambda. Typical flow:
 
 ```bash
-scripts/deploy/lambda/grab_instance.sh        # poll until a CC>=9.0 GPU is free, then launch it
+SSH_KEY_NAME="my-key" scripts/deploy/lambda/grab_instance.sh   # poll until a CC>=9.0 GPU is free, then launch it
 scripts/deploy/lambda/setup_node.sh   <ip>    # install vLLM + deps on the box (idempotent)
 scripts/deploy/lambda/start_server.sh <ip>    # resolve -> build (real nix closure if available) -> serve
 scripts/deploy/lambda/verify.sh               # send identical batches twice, compare bundles -> conformant?

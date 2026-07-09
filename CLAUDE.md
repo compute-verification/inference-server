@@ -1,4 +1,4 @@
-# Deterministic Serving Stack
+# Inference Server
 
 ## Project overview
 
@@ -76,8 +76,6 @@ Each experiment folder on the `experiments` branch should contain:
 - `scripts/`, `data/`, `reports/`, `figures/`
 
 Do NOT scatter experiment artifacts across `scripts/`, `results/`, `docs/reports/`, or other top-level directories. If code is reusable across experiments, put it in the relevant `modules/<capability>/` (or `modules/core/` if shared) with tests in `tests/unit/`.
-
-Use `/experiment <idea>` to start a new experiment — it walks through design, planning, critique, and implementation.
 
 ## Determinism flags (the "c3" config)
 

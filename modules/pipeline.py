@@ -1,4 +1,4 @@
-"""Compose deterministic-serving stages as a few readable Python lines.
+"""Compose the deterministic inference stages as a few readable Python lines.
 
 The artifact spine ``manifest.v1 -> lockfile.v1 -> run_bundle.v1 ->
 verify_report.v1`` already exists across ``cmd/{resolver,builder,runner,

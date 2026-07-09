@@ -320,7 +320,7 @@ def main() -> int:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=REPO_ROOT / "experiments" / "prover-verifier-demo" / "data" / "eval",
+        default=REPO_ROOT / "demos" / "prover-verifier" / "data" / "eval",
     )
     parser.add_argument("--duration", type=float, default=5.0)
     parser.add_argument(

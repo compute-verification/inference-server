@@ -1,15 +1,13 @@
-# Verification Tooling
+# Inference Server
 
-This repository is where the research prototypes of the Compute Verification project by Daniel Reuter, Luke Marks, and Jonathan Ng live. They include:
+An inference server with deterministic application and networking layers, built by the [Compute Verification Project](https://github.com/compute-verification) — a research nonprofit designing a protocol by which datacenters can demonstrate they are only running inference, without revealing secrets or requiring auditors to trust their hardware.
 
-- Full Stack Deterministic Inference
-- Memory Wipes
-- Deterministic LoRA Training
-- ... and more!
+Given the same model weights, prompts, and config flags, two independent servers produce bitwise-identical token outputs. On top of that determinism the repo layers verification tooling: manifest-pinned workloads, run-bundle capture and replay, matmul attestation, proof of secure erasure, and deterministic network egress.
 
-We are seeking contributions that advance the state of the art in compute verification. Please contact Daniel Reuter for more information.
+Authors: Daniel Reuter, Luke Marks, and Jonathan Ng.
+Contact: Daniel Reuter (dreuter14@gmail.com). Licensed under [Apache-2.0](LICENSE).
 
-> **Status: research prototype.** The determinism guarantees and CI gates are real and tested on H100/GH200 across millions of tokens (see below); the project is not a production-hardened serving stack. Expect rough edges.
+> **Status: research prototype.** The determinism results below were produced manually on H100/GH200 instances across millions of tokens; the hosted CI covers the CPU-side surface (unit/integration tests, schema gates, lint), not the GPU determinism gates. This is not a production-hardened serving stack — expect rough edges.
 
 ## Capabilities & layout
 
@@ -56,7 +54,7 @@ flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packa
 
 ## Results
 
-**157/157 cross-server comparisons match (100%)** across two independent NVIDIA GH200 480GB instances on Lambda Cloud:
+Reported results from a manual cross-server run on two independent NVIDIA GH200 480GB instances on Lambda Cloud — every cross-server comparison matched bitwise:
 
 | Model | Type | Repeated | Diverse | Tokens |
 |-------|------|----------|---------|--------|
@@ -64,48 +62,48 @@ flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packa
 | Qwen3-30B-A3B | Mixture of Experts | 20/20 match | 34/34 match | 2.0M |
 | Mistral-7B-Instruct-v0.3 | Dense transformer | 20/20 match | 34/34 match | 2.0M |
 
-Each chunk is 30,000 tokens of greedy decoding (temperature=0). Same container image on both servers, same seed, same config.
+Each chunk is 30,000 tokens of greedy decoding (temperature=0). Same container image on both servers, same seed, same config. The scripts used to produce these runs live under `experiments/single-node-determinism/` on the [`experiments` branch](../../tree/experiments).
 
 ## Architecture
 
 ```
-                              Deterministic Serving Stack
+                             Inference Server
  ┌──────────────────────────────────────────────────────────────────────┐
  │                                                                      │
- │  ┌──────────┐    ┌──────────┐    ┌──────────────────────────────┐   │
- │  │ Manifest │───>│ Resolver │───>│ Resolved manifest + Lockfile │   │
- │  │ (author) │    │          │    │ (pinned revisions, digests)  │   │
- │  └──────────┘    └──────────┘    └───────────────┬──────────────┘   │
+ │  ┌──────────┐    ┌──────────┐    ┌──────────────────────────────┐    │
+ │  │ Manifest │───>│ Resolver │───>│ Resolved manifest + Lockfile │    │
+ │  │ (author) │    │          │    │ (pinned revisions, digests)  │    │
+ │  └──────────┘    └──────────┘    └───────────────┬──────────────┘    │
  │                                                  │                   │
  │                                                  v                   │
  │  ┌────────────────────────────────────────────────────────────────┐  │
  │  │                    Nix Container Image                         │  │
  │  │  ┌──────────────────────────────────────────────────────────┐  │  │
- │  │  │ Proxy Server (modules/inference/server/main.py)                        │  │  │
+ │  │  │ Proxy Server (modules/inference/server/main.py)          │  │  │
  │  │  │  POST /manifest ── validate schema                       │  │  │
- │  │  │                  ── verify GPU model, count, driver       │  │  │
- │  │  │                  ── verify model file digests             │  │  │
- │  │  │                  ── start vLLM with manifest settings     │  │  │
- │  │  │  GET  /manifest ── return active config + health          │  │  │
+ │  │  │                 ── verify GPU model, count, driver       │  │  │
+ │  │  │                 ── verify model file digests             │  │  │
+ │  │  │                 ── start vLLM with manifest settings     │  │  │
+ │  │  │  GET  /manifest ── return active config + health         │  │  │
  │  │  │  POST /v1/...   ── proxy to vLLM + capture log           │  │  │
  │  │  └──────────────────────────┬───────────────────────────────┘  │  │
  │  │                             │                                  │  │
  │  │                             v                                  │  │
  │  │  ┌──────────────────────────────────────────────────────────┐  │  │
- │  │  │ vLLM 0.17.1 (VLLM_BATCH_INVARIANT=1, --enforce-eager)  │  │  │
+ │  │  │ vLLM 0.17.1 (VLLM_BATCH_INVARIANT=1, --enforce-eager)    │  │  │
  │  │  │  --model, --revision, --seed, --dtype,                   │  │  │
  │  │  │  --attention-backend, --max-model-len, ...               │  │  │
- │  │  │  (every manifest field passed as CLI flag or env var)     │  │  │
+ │  │  │  (every manifest field passed as CLI flag or env var)    │  │  │
  │  │  └──────────────────────────────────────────────────────────┘  │  │
  │  └────────────────────────────────────────────────────────────────┘  │
  │                                                                      │
- │  ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌──────────────┐  │
- │  │  Runner  │───>│ Capture  │───>│ Run Bundle│───>│   Verifier   │  │
- │  │(tokens,  │    │(request/ │    │(observ-   │    │(compare two  │  │
- │  │ logits,  │    │ response │    │ ables,    │    │ bundles via  │  │
- │  │ frames)  │    │ logging) │    │ frames,   │    │ comparison   │  │
- │  │          │    │          │    │ provenance│    │ config)      │  │
- │  └──────────┘    └──────────┘    └───────────┘    └──────────────┘  │
+ │  ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌──────────────┐   │
+ │  │  Runner  │───>│ Capture  │───>│ Run Bundle│───>│   Verifier   │   │
+ │  │(tokens,  │    │(request/ │    │(observ-   │    │(compare two  │   │
+ │  │ logits,  │    │ response │    │ ables,    │    │ bundles via  │   │
+ │  │ frames)  │    │ logging) │    │ frames,   │    │ comparison   │   │
+ │  │          │    │          │    │ provenance│    │ config)      │   │
+ │  └──────────┘    └──────────┘    └───────────┘    └──────────────┘   │
  └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -114,8 +112,8 @@ Each chunk is 30,000 tokens of greedy decoding (temperature=0). Same container i
 Bring up an NVIDIA H100 instance with the standard CUDA 12.8 AMI (Lambda Cloud's `gpu_1x_h100_sxm5` and `gpu_1x_h100_pcie` work as-is; GH200 also works), then:
 
 ```bash
-git clone https://github.com/compute-verification/verification-tooling
-cd verification-tooling
+git clone https://github.com/compute-verification/inference-server
+cd inference-server
 ./scripts/demo.sh
 ```
 
@@ -224,16 +222,17 @@ in Airflow / GitHub Actions — it's a ~60-line script, not a DAG orchestrator.
 
 ## Build & run
 
-Building from this checkout is the canonical, reproducible path. CI also
-publishes a digest-tagged image to GHCR on every push to `main` —
-`ghcr.io/<owner>/deterministic-serving:<git-sha>` (see
-[`.github/workflows/nix-build.yml`](.github/workflows/nix-build.yml)).
+Building from this checkout is the canonical, reproducible path. The full
+closure compiles vLLM and PyTorch from source, so plan on 30–60 minutes and a
+beefy machine for the first build (see
+[`.github/workflows/nix-build.yml`](.github/workflows/nix-build.yml) for a
+manually-triggerable CI build).
 
 ```bash
 # Build the hermetic runtime closure
 nix build .#closure
 
-# Build the OCI image — produces `deterministic-serving-runtime:<git-rev>`
+# Build the OCI image — produces `inference-server-runtime:<git-rev>`
 nix build .#oci
 docker load < result
 
@@ -241,7 +240,7 @@ docker load < result
 docker run -d --name vllm-server --gpus all --privileged \
   -e NVIDIA_DRIVER_CAPABILITIES=all \
   -v "$PWD:/workspace" -p 8000:8000 \
-  deterministic-serving-runtime:dev \
+  inference-server-runtime:dev \
   --manifest /workspace/demos/e2e-audit/scripts/smoke.manifest.json \
   --skip-boot-validation
 ```

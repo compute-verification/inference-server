@@ -37,7 +37,7 @@ echo "[launcher] picked offer $OFFER_ID"
 PUBKEY_B64=$(cat ~/.ssh/id_ed25519.pub | base64 -w0)
 echo "[launcher] creating instance..."
 CREATE_OUT=$(vastai create instance "$OFFER_ID" \
-    --image "ghcr.io/derpyplops/deterministic-serving:vast-test" \
+    --image "ghcr.io/compute-verification/inference-server:vast-test" \
     --disk 80 \
     --env "-p 22:22 -p 8000:8000 -e PUBKEY_B64=$PUBKEY_B64 -e SKIP_SERVER=1" \
     --entrypoint "$ENTRY" \

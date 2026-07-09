@@ -567,7 +567,7 @@ def run(
         "attestations": [
             {
                 "attestation_type": "run_provenance",
-                "signer": "runner@deterministic-serving-stack",
+                "signer": "runner@inference-server",
                 "statement_digest": sha256_prefixed(
                     canonical_json_bytes(
                         {

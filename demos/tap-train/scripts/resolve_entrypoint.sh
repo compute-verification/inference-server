@@ -2,10 +2,9 @@
 # Resolve the /nix/store/<hash>-entrypoint/bin/entrypoint path for the
 # vast-test image in ghcr. The hash changes every rebuild so the launcher
 # must fetch it dynamically.
-# Verbatim shape from /home/jon/.claude/CLAUDE.md vast section.
 set -euo pipefail
 
-IMAGE_REPO="${IMAGE_REPO:-derpyplops/deterministic-serving}"
+IMAGE_REPO="${IMAGE_REPO:-compute-verification/inference-server}"
 IMAGE_TAG="${IMAGE_TAG:-vast-test}"
 
 TOK=$(gh auth token)

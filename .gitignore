@@ -16,5 +16,5 @@ scripts/ci/d6_artifacts/
 # OS files
 .DS_Store
 
-.claude/skills/
-.claude/worktrees/
+# AI-agent local state
+.claude/

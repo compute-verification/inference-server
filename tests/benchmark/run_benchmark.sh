@@ -7,12 +7,12 @@
 # Droplet B (client): sends requests to A
 set -euo pipefail
 
-SSH_KEY="$HOME/.ssh/id_ed25519_surveyor"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=10"
 
 SERVER_IP="$1"  # Droplet A public IP
 CLIENT_IP="$2"  # Droplet B public IP
-BRANCH="${3:-dpdk-egress-integrity}"
+BRANCH="${3:-main}"
 
 RESULTS_DIR="tests/benchmark/results"
 mkdir -p "$RESULTS_DIR"

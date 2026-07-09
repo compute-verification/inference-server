@@ -1,6 +1,6 @@
 [Unit]
 Description=Active Warden - Inline MRF Packet Normalizer
-Documentation=https://github.com/luke-marks0/deterministic_serving_stack
+Documentation=https://github.com/compute-verification/inference-server
 After=network.target
 Wants=network.target
 
@@ -9,7 +9,7 @@ Type=simple
 ExecStartPre=/usr/local/bin/warden-setup.sh start
 ExecStart=/usr/bin/python3 -m cmd.warden.main --config /etc/warden/warden.yaml
 ExecStopPost=/usr/local/bin/warden-setup.sh stop
-WorkingDirectory=/opt/deterministic_serving_stack
+WorkingDirectory=/opt/inference-server
 Restart=on-failure
 RestartSec=5
 

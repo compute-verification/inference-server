@@ -57,6 +57,38 @@ from modules.network.networkdet.warden import ActiveWarden
 from modules.network.networkdet.capture import CaptureRing
 
 
+_WARDEN_SECRET_CACHE: bytes | None = None
+
+
+def _warden_secret() -> bytes:
+    """Key for the warden's IP-ID/ISN rewriting (WARDEN_SECRET env var).
+
+    The warden-normalized frames (and their digests in the run bundle) are a
+    keyed function of this secret, so two servers whose packet output should
+    be compared bitwise must be started with the same WARDEN_SECRET. When
+    unset, a random secret is generated once per process: safe, but frame
+    digests will not be reproducible across processes.
+    """
+    global _WARDEN_SECRET_CACHE
+    if _WARDEN_SECRET_CACHE is not None:
+        return _WARDEN_SECRET_CACHE
+
+    configured = os.environ.get("WARDEN_SECRET")
+    if configured:
+        _WARDEN_SECRET_CACHE = configured.encode("utf-8")
+        return _WARDEN_SECRET_CACHE
+
+    import secrets as _secrets
+
+    _WARDEN_SECRET_CACHE = _secrets.token_bytes(32)
+    print(
+        "[server] WARDEN_SECRET not set; using a random per-process warden key "
+        "(cross-server frame comparison requires setting the same WARDEN_SECRET on both servers)",
+        flush=True,
+    )
+    return _WARDEN_SECRET_CACHE
+
+
 def _hardware_fingerprint(hw: dict[str, Any]) -> str:
     return sha256_prefixed(canonical_json_bytes(hw))
 
@@ -738,7 +770,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             src_port=8000, dst_port=80,
         )
         net = DeterministicNetStack(config, run_id=manifest.run_id, backend=SimulatedBackend())
-        warden = ActiveWarden(secret=b"deterministic-warden-key")
+        warden = ActiveWarden(secret=_warden_secret())
         warden_capture = CaptureRing()
 
         inference_results = []

@@ -5,7 +5,7 @@
 # Usage: ssh ubuntu@<lambda-ip> 'bash -s' < scripts/deploy/lambda/setup.sh
 set -euo pipefail
 
-echo "=== Deterministic Serving Stack: Lambda H100 PCIe Setup ==="
+echo "=== Inference Server: Lambda H100 PCIe Setup ==="
 
 # Lambda instances come with CUDA and drivers pre-installed.
 # Verify GPU availability.
@@ -24,9 +24,9 @@ pip install --upgrade pip setuptools wheel
 pip install "vllm>=0.8.0" jsonschema requests huggingface_hub
 
 echo "--- Cloning repo ---"
-if [ ! -d /home/ubuntu/deterministic_serving_stack ]; then
-    git clone https://github.com/derpyplops/deterministic-serving-stack.git \
-        /home/ubuntu/deterministic_serving_stack
+if [ ! -d /home/ubuntu/inference-server ]; then
+    git clone https://github.com/compute-verification/inference-server.git \
+        /home/ubuntu/inference-server
 fi
 
 echo "--- Pre-downloading Qwen3-1.7B ---"

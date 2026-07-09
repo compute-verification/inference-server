@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Vast.ai bind-mounts driver libs at /usr/lib/x86_64-linux-gnu/libcuda.so.<X.Y.Z>
 # but does not create the libcuda.so.1 / libcuda.so symlinks torch dlopens.
-# Verbatim from /home/jon/.claude/CLAUDE.md vast section.
 set -eu
 
 cd /usr/lib/x86_64-linux-gnu

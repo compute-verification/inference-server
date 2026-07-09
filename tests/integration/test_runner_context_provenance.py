@@ -26,7 +26,7 @@ class TestRunnerContextProvenance(unittest.TestCase):
                     "RUNNER_POD_RUNTIME_CLOSURE_PATH": "/run-inputs/runtime_closure_digest.txt",
                     "RUNNER_POD_NAME": "runner-0",
                     "RUNNER_NODE_NAME": "node-h100-0",
-                    "RUNNER_NAMESPACE": "deterministic-serving",
+                    "RUNNER_NAMESPACE": "inference-server",
                     "RUNNER_GPU_MODEL": "H100-SXM-80GB",
                     "RUNNER_NIC_MODEL": "ConnectX-7",
                 },
@@ -45,7 +45,7 @@ class TestRunnerContextProvenance(unittest.TestCase):
             self.assertIn("logits", bundle["observables"])
             self.assertEqual(bundle["execution_context"]["pod"]["name"], "runner-0")
             self.assertEqual(bundle["execution_context"]["pod"]["node_name"], "node-h100-0")
-            self.assertEqual(bundle["execution_context"]["pod"]["namespace"], "deterministic-serving")
+            self.assertEqual(bundle["execution_context"]["pod"]["namespace"], "inference-server")
             self.assertEqual(bundle["execution_context"]["input_mounts"]["manifest_path"], "/run-inputs/manifest.json")
             self.assertEqual(bundle["execution_context"]["input_mounts"]["lockfile_path"], "/run-inputs/lockfile.json")
             self.assertEqual(

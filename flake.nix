@@ -11,9 +11,6 @@
   #
   # Trade-off: a clean build takes 30–60 min on a beefy machine (torch alone
   # is ~20 min with parallelism).  Subsequent builds hit the Nix store cache.
-  #
-  # Placeholder hashes are marked "TODO: replace after first build" — Nix will
-  # tell you the correct hash on the first attempt.
   # ───────────────────────────────────────────────────────────────────────────
 
   inputs = {
@@ -89,7 +86,6 @@
           owner = "triton-lang";
           repo = "triton";
           rev = "v3.6.0";
-          # TODO: replace after first build
           hash = "sha256-JFSpQn+WsNnh7CAPlcpOcUp0nyKXNbJEANdXqmkt4Tc=";
         };
 
@@ -97,7 +93,6 @@
           owner = "vllm-project";
           repo = "FlashMLA";
           rev = "692917b1cda61b93ac9ee2d846ec54e75afe87b1";
-          # TODO: replace after first build
           hash = "sha256-GH7X25dy/PQiLIsItEzNa/N5r8VmOQRilIWLJdHj7kE=";
           fetchSubmodules = true;
         };
@@ -106,7 +101,6 @@
           owner = "IST-DASLab";
           repo = "qutlass";
           rev = "830d2c4537c7396e14a02a46fbddd18b5d107c65";
-          # TODO: replace after first build
           hash = "sha256-wXCQ5XlV8rKmctYCKDBc2aUqmHZX8qwXgGZY2BGyw5I=";
           fetchSubmodules = true;
         };
@@ -319,7 +313,7 @@
 
         # ── Application source ─────────────────────────────────────────────
         appSrc = pkgs.stdenv.mkDerivation {
-          pname = "deterministic-serving-stack";
+          pname = "inference-server";
           version = "0.1.0";
           src = self;
           dontBuild = true;
@@ -336,7 +330,7 @@
 
         # ── Full runtime closure ───────────────────────────────────────────
         runtimeClosure = pkgs.symlinkJoin {
-          name = "deterministic-serving-runtime-closure";
+          name = "inference-server-runtime-closure";
           version = "0.1.0";
           paths = [
             pythonEnv
@@ -404,7 +398,7 @@
 
         # ── OCI image ──────────────────────────────────────────────────────
         ociImage = pkgs.dockerTools.buildLayeredImage {
-          name = "deterministic-serving-runtime";
+          name = "inference-server-runtime";
           tag = self.rev or "dev";
           contents = [
             runtimeClosure

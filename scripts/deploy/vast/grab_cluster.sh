@@ -5,7 +5,7 @@
 # Outputs node IPs/ports to cluster.env for use by setup_cluster.sh.
 set -euo pipefail
 
-IMAGE="${1:---image ghcr.io/derpyplops/deterministic-serving:multinode}"
+IMAGE="${1:---image ghcr.io/compute-verification/inference-server:multinode}"
 DISK="${2:-100}"
 NUM_WORKERS=3
 

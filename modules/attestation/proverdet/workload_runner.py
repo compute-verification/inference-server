@@ -16,12 +16,12 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-EXP_SCRIPTS = REPO_ROOT / "experiments" / "prover-verifier-demo" / "scripts"
+WORKLOAD_SCRIPTS = REPO_ROOT / "demos" / "prover-verifier" / "scripts"
 
 
 def _ensure_experiment_scripts_on_path() -> None:
-    if str(EXP_SCRIPTS) not in sys.path:
-        sys.path.insert(0, str(EXP_SCRIPTS))
+    if str(WORKLOAD_SCRIPTS) not in sys.path:
+        sys.path.insert(0, str(WORKLOAD_SCRIPTS))
 
 
 def _resolve_workload_class(name: str) -> type:

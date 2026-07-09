@@ -30,6 +30,13 @@ assert report["status"] == "conformant"
 - `vllm` (default) — real inference; needs a GPU + vLLM. Serve long-running via `modules/inference/server`.
 - `mock` — no GPU; stub observables for wiring/CI/local dev. NOT real inference, and not a determinism proof (two mock runs match by construction).
 
+**Server env vars.**
+- `WARDEN_SECRET` — key for the warden's IP-ID/ISN frame rewriting. The
+  warden-normalized frames (and their digests in the run bundle) are a keyed
+  function of this secret, so set the *same* value on both servers when
+  comparing packet output bitwise. Unset ⇒ a random per-process key is
+  generated (logged at startup).
+
 **Example.** `workflows/deterministic_inference_server.py`.
 
 **Underlying code.** `cmd/runner` (batch runner), `modules/inference/server` (HTTP serving),

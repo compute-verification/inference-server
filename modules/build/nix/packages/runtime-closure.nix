@@ -16,7 +16,7 @@ let
   ]);
 in
 pkgs.symlinkJoin {
-  name = "deterministic-serving-runtime-closure";
+  name = "inference-server-runtime-closure";
   version = "0.1.0";
   paths = [
     pythonEnv

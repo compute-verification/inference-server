@@ -7,7 +7,7 @@ let
   runtimeClosure = import ../packages/runtime-closure.nix { inherit pkgs; };
 in
 pkgs.dockerTools.buildLayeredImage {
-  name = "deterministic-serving-runtime";
+  name = "inference-server-runtime";
   tag = "0.1.0";
   # runtimeClosure already includes Python — do not add pkgs.python310 again
   contents = [ runtimeClosure ];

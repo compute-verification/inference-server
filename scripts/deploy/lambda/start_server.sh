@@ -10,8 +10,8 @@ echo "=== Starting server on ${IP} ==="
 ssh -o StrictHostKeyChecking=no "ubuntu@${IP}" bash -s <<'REMOTE'
 set -euo pipefail
 source /home/ubuntu/venv/bin/activate
-export PYTHONPATH="/home/ubuntu/deterministic_serving_stack"
-cd /home/ubuntu/deterministic_serving_stack
+export PYTHONPATH="/home/ubuntu/inference-server"
+cd /home/ubuntu/inference-server
 
 # Kill existing server
 pkill -f "modules/inference/server/main.py" 2>/dev/null || true

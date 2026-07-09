@@ -201,7 +201,7 @@
 
         # ── Application source ─────────────────────────────────────────────
         appSrc = pkgs.stdenv.mkDerivation {
-          pname = "deterministic-serving-stack";
+          pname = "inference-server";
           version = "0.1.0";
           src = self;
           dontBuild = true;
@@ -219,7 +219,7 @@
         # wheels, no FHS compat layer.  `nix path-info -rsSh` will show you
         # the exact set of store paths.
         runtimeClosure = pkgs.symlinkJoin {
-          name = "deterministic-serving-runtime-closure";
+          name = "inference-server-runtime-closure";
           version = "0.1.0";
           paths = [
             pythonEnv
@@ -232,7 +232,7 @@
 
         # ── OCI image ──────────────────────────────────────────────────────
         ociImage = pkgs.dockerTools.buildLayeredImage {
-          name = "deterministic-serving-runtime";
+          name = "inference-server-runtime";
           tag = self.rev or "dev";
           contents = [ runtimeClosure ];
           config = {
