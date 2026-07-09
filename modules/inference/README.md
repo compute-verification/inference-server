@@ -39,5 +39,5 @@ assert report["status"] == "conformant"
 
 **Example.** `workflows/deterministic_inference_server.py`.
 
-**Underlying code.** `cmd/runner` (batch runner), `modules/inference/server` (HTTP serving),
+**Underlying code.** `modules/inference/runner` (batch runner), `modules/inference/server` (HTTP serving),
 `modules/inference/manifest` (config model).

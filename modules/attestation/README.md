@@ -26,7 +26,7 @@ from modules.attestation.proverdet.verdict import replay_correctness, compute_bu
 runs on the serving GPU.
 
 **Underlying code.** `modules/attestation/freivalds`, `modules/attestation/e2e`, `modules/attestation/proverdet`, `modules/attestation/verifier`,
-`cmd/prover`, `modules/attestation/verifier_{cli,server}`. The prover-verifier-demo composes these
+`modules/attestation/prover`, `modules/attestation/verifier_{cli,server}`. The prover-verifier demo composes these
 end-to-end (`demos/prover-verifier/`).
 
 **Status.** Mature. Facade in `modules/attestation/api.py`: `attest_matmuls()`

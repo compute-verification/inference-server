@@ -49,7 +49,7 @@ modules/                Capability layer — each module owns its code, plus sha
                         + schemas/ (JSON Schema contracts: manifest, lockfile, run_bundle, verify_report, attestation/replay)
 workflows/              Runnable compositions of the modules
 demos/                  End-to-end scenarios: e2e-audit (the scripts/demo.sh path), prover-verifier (the protocol demo). Research experiments live on the `experiments` branch.
-scripts/deploy/         Lambda / vast / warden provisioning (utils-owned)
+scripts/deploy/         Lambda / vast provisioning (utils-owned)
 tests/conformance/      Spec conformance catalog + release blockers (read by CI)
 flake.nix, flake.lock   Hermetic build entrypoint + pin (at root: src=self packages repo-wide code; callers invoke `.#`)
 ```

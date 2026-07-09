@@ -22,7 +22,7 @@ run in, and provides the canonical-JSON / digest helpers the whole pipeline reli
 **Requirements.** Cloud API keys (Lambda / Vast) for provisioning; nothing for
 the helpers.
 
-**Underlying code.** `scripts/deploy/{lambda,vast,warden}/`, `scripts/lambda_cli.py`,
+**Underlying code.** `scripts/deploy/{lambda,vast}/`, `scripts/lambda_cli.py`,
 `modules/core/common/`.
 
 **Status.** Facade in `modules/utils/api.py` re-exports the canonical-JSON /

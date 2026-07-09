@@ -5,13 +5,12 @@ GPU box." This is the only path that exercises **GPU bitwise determinism** and
 computes the **real Nix closure pin** — GitHub CI is CPU-only and proves none of
 that (see [`workflows/`](../workflows/) for the CPU recipes).
 
-Three targets:
+Two targets:
 
 | Dir | Target | Use it for |
 |---|---|---|
 | `lambda/` | Lambda Cloud, single H100/GH200 | provision a box, serve, verify determinism end-to-end |
 | `vast/` | vast.ai, 4× H100 SXM cluster | multi-node / cross-node determinism (the D6 gate) |
-| `warden/` | any Linux host | run the active warden (network covert-channel scrubber) as a service |
 
 ## `lambda/` — single node
 
@@ -44,13 +43,3 @@ scripts/deploy/vast/setup_cluster.sh <head> <w1> <w2> <w3>  # Ray cluster + mult
 scripts/deploy/vast/teardown_cluster.sh [contract_id ...]   # destroy nodes (no args = ALL instances — careful)
 ```
 
-## `warden/` — active warden service
-
-```bash
-sudo scripts/deploy/warden/setup.sh install   # deps + config (NetfilterQueue, libnetfilter-queue)
-sudo scripts/deploy/warden/setup.sh start     # add iptables NFQUEUE rules
-sudo scripts/deploy/warden/setup.sh stop      # remove the rules
-sudo scripts/deploy/warden/setup.sh status    # show rules + warden status
-```
-
-`warden.service` is the systemd unit for running it persistently.

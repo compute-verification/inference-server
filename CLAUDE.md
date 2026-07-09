@@ -38,7 +38,7 @@ workflows/              — Recipe book: runnable compositions of modules (e.g. 
 tests/                  — unit/, integration/, e2e/, determinism/, modules/, fixtures/
 scripts/ci/             — CI scripts (schema gates, conformance checks, determinism gates d0–d6)
 scripts/                — General utilities (reproduce.sh); scripts/lambda/ (lambda CLI)
-scripts/deploy/         — Lambda/vast/warden provisioning (utils-owned)
+scripts/deploy/         — Lambda/vast provisioning (utils-owned)
 demos/                  — Runnable end-to-end scenarios: e2e-audit (used by scripts/demo.sh), prover-verifier (CPU demo of the protocol)
 tests/conformance/      — Machine-readable spec catalog + release blockers (read by CI gates)
 flake.nix, flake.lock   — Hermetic build entrypoint + pin (at root: the flake's src=self packages repo-wide code and callers invoke `.#`)

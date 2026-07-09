@@ -1,9 +1,9 @@
 """Compose the deterministic inference stages as a few readable Python lines.
 
 The pipeline ``manifest.v1 -> lockfile.v1 -> run_bundle.v1 ->
-verify_report.v1`` already exists across ``cmd/{resolver,builder,runner,
-verifier}``; :class:`Pipeline` wraps it so a workflow is a shareable file
-instead of an ad-hoc bash script::
+verify_report.v1`` already exists as per-stage CLIs (resolver, builder,
+runner, verifier); :class:`Pipeline` wraps it so a workflow is a shareable
+file instead of an ad-hoc bash script::
 
     report = (Pipeline.from_manifest("modules/inference/manifests/qwen3-1.7b.manifest.json")
               .resolve()             # -> lockfile.v1
